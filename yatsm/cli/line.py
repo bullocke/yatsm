@@ -181,8 +181,8 @@ def line(ctx, config, job_number, total_jobs,
                     year_interval=cfg['phenology']['year_interval'],
                     q_min=cfg['phenology']['q_min'],
                     q_max=cfg['phenology']['q_max'])
-
-            output.extend(yatsm.record)
+            if yatsm.record is not None:
+            	output.extend(yatsm.record)
 
         logger.debug('    Saving YATSM output to %s' % out)
         np.savez(out,
