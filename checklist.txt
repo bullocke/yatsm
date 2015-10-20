@@ -1,0 +1,14 @@
+1. Save normal YATSM results to have prob and status attributes. These will start as 0.
+-Easy, just do it in the ccdc.py (or my version of it)
+
+2. For each pixel and for a certain date loop over prediction from most recent model. 
+-I can just use the prediction from the prediction script - no need to fit new
+model for now. 
+
+3. if it's above threshold add 1 to both prob and status. for now dont worry about calculating prob.  
+#i need to use np.linalg.norm on the scores like in the YATSM script to get
+vector norm
+#check if prob equals 0 or consecutive threshold
+
+
+4. Resave the files with updated attributes and export a map. 

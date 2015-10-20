@@ -123,7 +123,10 @@ class CCDCesque(YATSM):
             ('rmse', 'float32', (self.n_series)),
             ('magnitude', 'float32', self.n_series),
             ('px', 'u2'),
-            ('py', 'u2')
+            ('py', 'u2'),
+	    ('status', 'i4'),
+	    ('probability', 'i4'),
+	    ('consec', 'i4')
         ])
         record_template['px'] = getattr(self, 'px', 0)
         record_template['py'] = getattr(self, 'py', 0)
@@ -181,8 +184,9 @@ class CCDCesque(YATSM):
             self.test_indices = np.arange(self.n_series)
 
         if len(dates) < self.here + self.consecutive:
-            raise TSLengthException('Not enough observations (n = %s)' %
-                                    len(dates))
+	   pass 
+#          raise TSLengthException('Not enough observations (n = %s)' %
+ #                                   len(dates))
 
         self.n_record = 0
         self.record = np.copy(self.record_template)
@@ -209,6 +213,10 @@ class CCDCesque(YATSM):
         if self.record[-1]['start'] == 0 and self.record[-1]['end'] == 0:
             self.record = self.record[:-1]
 
+	#To do: Make this correspond with the actual status at end of time series instead of resetting
+        self.record['status'] = 0
+	self.record['probability'] = 0
+	self.record['consec'] = 0
         return self.record
 
     def reset(self):
@@ -422,7 +430,9 @@ class CCDCesque(YATSM):
 
         # Check for scores above critical value
         mag = np.linalg.norm(np.abs(scores), axis=1)
-
+        mag2 = np.where(mag > self.threshold)
+	#change 734502 to date your looking for with date.fromordinal or to ordinal
+       # if (np.shape(mag2)[1] > (self.consecutive - 2)) & (self.X[self.here + 1, 1] > 734502):
         if np.all(mag > self.threshold):
             logger.debug('CHANGE DETECTED')
 

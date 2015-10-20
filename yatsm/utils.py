@@ -210,7 +210,9 @@ def iter_records(records, warn_on_empty=False, yield_filename=False):
             logger.debug('{0:.1f}%'.format(_i / n_records * 100))
         # Open output
         try:
-            rec = np.load(r)['record']
+    #        rec = np.load(r)['record']
+	    z = np.load(r)
+	    rec = z['record']
         except (ValueError, AssertionError):
             logger.warning('Error reading {f}. May be corrupted'.format(f=r))
             continue
@@ -224,7 +226,7 @@ def iter_records(records, warn_on_empty=False, yield_filename=False):
         if yield_filename:
             yield rec, r
         else:
-            yield rec
+            yield z, rec
 
 
 # MISC UTILITIES

@@ -82,6 +82,7 @@ entry_points = '''
     classify=yatsm.cli.classify:classify
     map=yatsm.cli.map:map
     changemap=yatsm.cli.changemap:changemap
+    monitor=yatsm.cli.monitor:monitor
 '''
 
 setup_dict = dict(

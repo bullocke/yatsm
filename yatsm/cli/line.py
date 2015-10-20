@@ -147,11 +147,11 @@ def line(ctx, config, job_number, total_jobs,
                 _Y,
                 cfg['dataset']['min_values'],
                 cfg['dataset']['max_values']).astype(bool)
-
             valid *= np.in1d(_Y.take(idx_mask, axis=0),
                              cfg['dataset']['mask_values'],
                              invert=True).astype(np.bool)
-
+           # valid = np.logical_and(_Y[10, :] <= 3000, _Y[idx_mask, :] >= 1,
+           #                np.all(_Y >= 1, axis=0))
             _Y = np.delete(_Y, idx_mask, axis=0)[:, valid]
             _X = X[valid, :]
             _dates = dates[valid]
@@ -163,7 +163,13 @@ def line(ctx, config, job_number, total_jobs,
             yatsm.px = col
             yatsm.py = line
 
+            #try:
             yatsm.fit(_X, _Y, _dates)
+            #except TSLengthException:
+             #   continue
+
+            #if yatsm.record is None:
+            #    continue
 
             # Postprocess
             if cfg['YATSM']['commission_alpha']:

@@ -1,0 +1,14 @@
+
+    [console_scripts]
+    yatsm=yatsm.cli.main:cli
+
+    [yatsm.yatsm_commands]
+    cache=yatsm.cli.cache:cache
+    pixel=yatsm.cli.pixel:pixel
+    segment=yatsm.cli.segment:segment
+    line=yatsm.cli.line:line
+    train=yatsm.cli.train:train
+    classify=yatsm.cli.classify:classify
+    map=yatsm.cli.map:map
+    changemap=yatsm.cli.changemap:changemap
+    monitor=yatsm.cli.monitor:monitor

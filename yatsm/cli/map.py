@@ -257,7 +257,7 @@ def find_indices(record, date, after=False, before=False):
         _, _index = np.unique(record['px'][index], return_index=True)
         index = index[_index]
         yield _after_qa, index
-
+    import pdb; pdb.set_trace()
     # Model intersecting date
     index = np.where((record['start'] <= date) & (record['end'] >= date))[0]
     yield _intersect_qa, index
