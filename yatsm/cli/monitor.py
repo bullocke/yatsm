@@ -63,17 +63,17 @@ def monitor(ctx, config, date, output,
     date = date.toordinal()
 
     band_names = 'Probability'
-    raster, probability = get_mon_prediction(
+    raster, probability, linescores_rast = get_mon_prediction(
             date, result, image_ds, image_ar, dataset_config,
             band,
             ndv=ndv
         )
-    write_mon_output(probability, output, image_ds,
+    write_mon_output(linescores_rast, output, image_ds,
                  gdal_frmt, ndv)
 
 
 def get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight):
-    threshold = 5
+    threshold = 2
     mag = np.linalg.norm(np.abs(linescores), axis=2)
     for i in range(np.shape(mag)[1]):
 	if mag[0,i] > threshold:
@@ -299,6 +299,8 @@ def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config
                      dtype=np.int16) * int(ndv)
     probability = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
                      dtype=np.int16) * int(ndv)
+    linescores_rast = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
+		     dtype=np.int16) * int(ndv)
     logger.debug('Processing results')
 
     temp=0
@@ -346,7 +348,7 @@ def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config
 
 	   #calculate change score for each band 
 	   linescores[:,:,:], vzaweight[:,:,:] = get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp)
-
+	   linescores_rast[rec['py'][index], :, :n_i_bands]=linescores
 	   #For testing purposes, save the scores
 	   testname='%s' % rec['py'][index][0]
 	   np.save(testname, linescores)
@@ -368,5 +370,5 @@ def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config
 	   out['record']['probability'][indice] = lineprob[0,q,0]
        #filename = get_output_name(dataset_config['dataset'], _py[0])       
     #   np.savez(filename, **out) 
-    return raster, probability
+    return raster, probability, linescores_rast
 
