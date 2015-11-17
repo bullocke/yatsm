@@ -150,8 +150,8 @@ def line(ctx, config, job_number, total_jobs,
             valid *= np.in1d(_Y.take(idx_mask, axis=0),
                              cfg['dataset']['mask_values'],
                              invert=True).astype(np.bool)
-           # valid = np.logical_and(_Y[10, :] <= 3000, _Y[idx_mask, :] >= 1,
-           #                np.all(_Y >= 1, axis=0))
+#            valid = np.logical_and(_Y[10, :] <= 3500, _Y[idx_mask, :] >= 1,
+#                           np.all(_Y >= -1000, axis=0))
             _Y = np.delete(_Y, idx_mask, axis=0)[:, valid]
             _X = X[valid, :]
             _dates = dates[valid]

@@ -30,25 +30,22 @@ logger = logging.getLogger('yatsm')
               help="Resume classification (don't overwrite)")
 @click.pass_context
 def classify(ctx, config, algo, job_number, total_jobs, resume):
-    dataset_config, yatsm_config = parse_config_file(config)
+    cfg = parse_config_file(config)
 
-    dates, sensors, images = csvfile_to_dataframe(
-        dataset_config['input_file'],
-        date_format=dataset_config['date_format']
-    )
-    nrow = get_image_attribute(images[0])[0]
+    df = csvfile_to_dataframe(cfg['dataset']['input_file'],
+                              cfg['dataset']['date_format'])
+    nrow = get_image_attribute(df['filename'][0])[0]
 
     classifier = joblib.load(algo)
 
     # Split into lines and classify
-    job_lines = distribute_jobs(job_number - 1, total_jobs, nrow)
+    job_lines = distribute_jobs(job_number, total_jobs, nrow)
     logger.debug('Responsible for lines: {l}'.format(l=job_lines))
 
     start_time = time.time()
     logger.info('Starting to run lines')
     for job_line in job_lines:
-
-        filename = get_output_name(dataset_config, job_line)
+        filename = get_output_name(cfg['dataset'], job_line)
         if not os.path.exists(filename):
             logger.warning('No model result found for line {l} '
                            '(file {f})'.format(l=job_line, f=filename))
@@ -69,14 +66,11 @@ def classify(ctx, config, algo, job_number, total_jobs, resume):
 
 def try_resume(filename):
     """ Return True/False if dataset has already been classified
-
     Args:
       filename (str): filename of the result to be checked
-
     Returns:
       bool: If the `npz` file exists and contains a file 'class', this test
         will return True, else False.
-
     """
     try:
         z = np.load(filename)
@@ -91,11 +85,9 @@ def try_resume(filename):
 
 def classify_line(filename, classifier):
     """ Use `classifier` to classify data stored in `filename`
-
     Args:
       filename (str): filename of stored results
       classifier (sklearn classifier): pre-trained classifier
-
     """
     z = np.load(filename)
     rec = z['record']

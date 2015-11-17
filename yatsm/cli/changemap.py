@@ -182,11 +182,14 @@ def get_datechangemap(start, end, result_location, image_ds,
                                dtype=np.float32) * float(ndv)
 
     logger.debug('Processing results')
-    for rec in iter_records(records):
+    for a, rec in iter_records(records):
+	#This is just for the Mangrove scene
+	#remove coef for non-negative slopes only
+#        index = np.where((rec['break'] >= start) &
+#                         (rec['break'] <= end) & (rec['coef'][:,1,:][:,1] <= 0))[0]
 
         index = np.where((rec['break'] >= start) &
                          (rec['break'] <= end))[0]
-
         if first:
             _, _index = np.unique(rec['px'][index], return_index=True)
             index = index[_index]
@@ -234,9 +237,9 @@ def get_numchangemap(start, end, result_location, image_ds,
                      dtype=np.int32) * int(ndv)
 
     logger.debug('Processing results')
-    for rec in iter_records(records):
+    for a, rec in iter_records(records):
         # X location of each changed model
-        px_changed = rec['px'][(rec['break'] >= start) & (rec['break'] <= end)]
+        px_changed = rec['px'][np.where((rec['break'] >= start) & (rec['break'] <= end))]
         # Count occurrences of changed pixel locations
         bincount = np.bincount(px_changed)
         # How many changes for unique values of px_changed?

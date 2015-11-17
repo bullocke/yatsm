@@ -246,10 +246,16 @@ def find_indices(record, date, after=False, before=False):
         indices.
 
     """
+    #for before given your okay with there being a break
     if before:
-        # Model before, as long as it didn't change
-        index = np.where((record['end'] <= date) & (record['break'] == 0))[0]
-        yield _before_qa, index
+	index = np.where((record['start'] <= date) & (record['end'] >= (date-2000)))[0]
+#	import pdb; pdb.set_trace()
+	yield _before_qa, index
+
+#    if before:
+#        # Model before, as long as it didn't change
+#        index = np.where((record['end'] <= date) & (record['break'] == 0))[0]
+#        yield _before_qa, index
 
     if after:
         # First model starting after date specified
@@ -257,7 +263,6 @@ def find_indices(record, date, after=False, before=False):
         _, _index = np.unique(record['px'][index], return_index=True)
         index = index[_index]
         yield _after_qa, index
-    import pdb; pdb.set_trace()
     # Model intersecting date
     index = np.where((record['start'] <= date) & (record['end'] >= date))[0]
     yield _intersect_qa, index

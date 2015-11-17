@@ -35,13 +35,17 @@ _result_record = 'yatsm_r*'
 @options.opt_date_format
 @options.opt_nodata
 @options.opt_format
+@click.option('--save', is_flag=True,
+              help='Update YATSM .npz files for monitoring')
 @click.option('--band', '-b', multiple=True, metavar='<band>', type=int,
               help='Bands to export for coefficient/prediction maps')
+@click.option('--outputrast', '-o', metavar='<outputrast>', type=click.Choice(['ChangeScore', 'Probability']),
+              help='Output Probability or ChangeScore?')
 @click.pass_context
 
 
 def monitor(ctx, config, date, output,
-        root, result, image, date_frmt, ndv, gdal_frmt, band):
+        root, result, image, date_frmt, ndv, gdal_frmt, band, outputrast, save):
     """
     Examples:
     > yatsm monitor -r YATSM -b 1 -b 2 -b 3 -b 4 -b 5 -b 6 -b 7 -b 8 -b 9 -i 2012/MOD_A2012001.gtif params.yaml 2012-01-01 2012001_Prob.tif \
@@ -58,41 +62,104 @@ def monitor(ctx, config, date, output,
         logger.error('Could not open new image for reading')
         raise
 
+
+
     #Open new mage as array
     image_ar = image_ds.ReadAsArray()
     date = date.toordinal()
-
     band_names = 'Probability'
     raster, probability, linescores_rast = get_mon_prediction(
-            date, result, image_ds, image_ar, dataset_config,
+            date, result, image_ds, image_ar, dataset_config, save,
             band,
             ndv=ndv
         )
-    write_mon_output(linescores_rast, output, image_ds,
+
+    _outputrast = probability
+    #Determine what to output
+    if outputrast == "ChangeScore":
+	_outputrast = linescores_rast
+    linescores_rast = linescores_rast*10
+    write_mon_output(_outputrast, output, image_ds,
                  gdal_frmt, ndv)
 
-
-def get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight):
-    threshold = 2
-    mag = np.linalg.norm(np.abs(linescores), axis=2)
-    for i in range(np.shape(mag)[1]):
-	if mag[0,i] > threshold:
-	    lineprob[0,i] = ((vzaweight[0,i]*1) + lineconsec[0,i,0])
+def get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight, image_ar, py, px, date, linebreak):
+    threshold = -3.5
+    ndvi=1
+    cloudthreshold=15
+    blue=4
+    swir=6
+    shadowthreshold=-2
+    #probability weight. Taken from the average change score for NDVI for change pixels tested. Change scores above this threshold will have higher probability, lower will have less. 
+    probweight=-3.5
+  #  mag = np.linalg.norm(np.abs(linescores), axis=2)
+    cloudprob=np.ones((1,np.shape(linescores)[1]))
+    shadowprob=np.ones((1,np.shape(linescores)[1]))
+    _px=px[0]
+    #loop over pixels
+    for i in range(np.shape(linescores)[1]):
+	#If it's already changed just leave it.
+	if lineprob[0,i,0] >= 100:
+	    continue
+	#First do the cloud test:
+	if linescores[0,i,blue] > cloudthreshold:
+	    cloudprob[0,i]=0
+	if image_ar[9,py,i] < 1:
+	    continue 
+       #if image_ar[9,py,i] > 0:
+	#Now do the shadow test:
+	if linescores[0,i,swir] < shadowthreshold:
+	    shadowprob[0,i]=0
+	#First check if it passes NDVI threshold
+	if linescores[0,i,ndvi] < threshold:
+	   # lineprob[0,i,0] = ((cloudprob[0,i] * shadowprob[0,i]) * (linescores[0,i,ndvi]/probweight) * (vzaweight[0,i])[0] + (2 * lineconsec[0,i,0])) * 10  i
+#	    lineprob[0,i,0] = lineprob[0,i,0] + (((cloudprob[0,i] * shadowprob[0,i]) * (lineconsec[0,i,0]) * (vzaweight[0,i])[0]) * 10)  
+	    lineprob[0,i,0] = lineprob[0,i,0] + (((cloudprob[0,i] * shadowprob[0,i]) * (lineconsec[0,i,0])) * 10)  
+	#One means last one was change
             linestatus[0,i,0] = 1
-	    #one means last one was change
 	    lineconsec[0,i,0] += 1
-	elif linestatus[0,i,0] == 0:
-	    linestatus[0,i,0] = 0
-	#If it's below threshold and it's negative one - this means the last one was below. 	
-	elif linestatus[0,i,0] < 0:
+	    if lineprob[0,i,0] >= 100:
+	        linebreak[0,i,0] = date
+	#But if it's not change, and last one was...set it to -1 to not start over. 
+	elif (linestatus[0,i,0] == 1) and ((vzaweight[0,i])[0] > 1):
 	    lineprob[0,i,0] = 0
 	    lineconsec[0,i,0] = 0
 	    linestatus[0,i,0] = 0        
-   
-    return lineprob
+	    continue 
+	elif (linestatus[0,i,0] == 1) and ((vzaweight[0,i])[0] < 1):
+	    continue 
+	#If the line status is 0 and it's not above thresh, prob is 0. 
+	elif linestatus[0,i,0] == 0:
+	    lineprob[0,i,0] = 0
+	    lineconsec[0,i,0] = 0
+	    linestatus[0,i,0] = 0        
+	    continue 
+	#If it's below threshold and it's negative one - this means the last one was below. Nothing changes but status switches to 0. 
+	#TODO: Should nothing change or should it be divided by 2? 	
+	elif linestatus[0,i,0] == -1:
+	    linestatus[0,i,0] = 0        
+	    continue 
+    return lineprob[0,:,0], linestatus[0,:,0], lineconsec[0,:,0], linebreak[0,:,0]
 
 def get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp):
 
+    """Return change scores based on model RMSE. Also returns VZA weight.
+
+    Args:
+	raster (arr): predicted image for date specified.
+	image_ar (arr): array of input image. 
+	_px: X location of pixel
+	_py: Y location of pixel
+	i_bands (list): List of bands to use in change detection
+	rmse (arr): rmse for model being used for prediction.
+	temp: TODO: Get rid of this
+	VZAweight: TODO: Add this as a variable
+
+    Returns:
+        scores(np.ndarray): 2D numpy array containing the change scores for the
+            image specified 
+	vzaweight(np.ndarray): 2D numpy array containing vza weights to use for image. 
+
+	"""
     scores=np.zeros((np.shape(raster)[1],np.shape(raster)[2]))
     vzaweight=np.zeros((np.shape(raster)[1],1))
 
@@ -103,7 +170,7 @@ def get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp):
 #	    if image_ar[9,py,px] == 0:
  #               continue
             im_val=image_ar[_band,py,px]
-            scores[px,_band]=(im_val.astype(float) - raster[py,px,_band])/rmse[0,px,_band]
+            scores[px,_band]=((im_val.astype(float) - raster[py,px,_band])/rmse[0,px,_band])
 	    vzaweight[px] = 3000.0 / image_ar[10,py,px]
 
     return scores, vzaweight
@@ -254,7 +321,7 @@ def find_mon_indices(record, date, after=False, before=False):
     yield index
 
 
-def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config,
+def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config, save,
 		   bands='all', prefix='', ndv=-9999, pattern=_result_record):
 
     """ Get prediction for date of input image.
@@ -297,8 +364,14 @@ def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config
 
     raster = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
                      dtype=np.int16) * int(ndv)
-    probability = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
-                     dtype=np.int16) * int(ndv)
+    probout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
+    breakout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
+    statusout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
+    consecout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
     linescores_rast = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
 		     dtype=np.int16) * int(ndv)
     logger.debug('Processing results')
@@ -319,6 +392,8 @@ def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config
        lineconsec = np.zeros((1, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
 
+       linebreak = np.zeros((1, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
        linestatus = np.zeros((1, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
        lineprob = np.zeros((1, image_ds.RasterXSize, 1),
@@ -342,33 +417,36 @@ def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config
 
            #Calculate how many (if any) consective observations have been above threshold
 	   lineconsec[:, rec['px'][index],0] = rec['consec'][index][:,]
-
+	   #Initation array to save break dates
+	   linebreak[:, rec['px'][index],0] = rec['break'][index][:,]
 	   #Calculate the 'status' of the pixel. Necessary since we are allowing one consecutive under the threshold
 	   linestatus[:, rec['px'][index],0] = rec['status'][index][:,]
 
+	   lineprob[:, rec['px'][index],0] = rec['probability'][index][:,]
 	   #calculate change score for each band 
 	   linescores[:,:,:], vzaweight[:,:,:] = get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp)
 	   linescores_rast[rec['py'][index], :, :n_i_bands]=linescores
 	   #For testing purposes, save the scores
 	   testname='%s' % rec['py'][index][0]
-	   np.save(testname, linescores)
-
+           py=np.unique(rec['py'])
 	   #Calculate current probability
 	   probweights = 0
-           probability[np.unique(rec['py']),:,:] = get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight) 
-       csv.append(linescores)
+           probout[np.unique(rec['py']),:,0], statusout[np.unique(rec['py']),:,0], consecout[np.unique(rec['py']),:,0], breakout[np.unique(rec['py']),:,0] = get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight, image_ar, py, rec['py'][index], date, linebreak) 
     #resave 
-       out = {}
-       for k, v in z.iteritems():
-           out[k] = v
-       for q in range(np.shape(probability)[1]):
-           indice=np.where(out['record']['px']==q)
-           if np.shape(indice)[1] == 0:
-	       continue
-	   out['record']['consec'][indice] = lineconsec[0,q,0]
-	   out['record']['status'][indice] = linestatus[0,q,0]
-	   out['record']['probability'][indice] = lineprob[0,q,0]
-       #filename = get_output_name(dataset_config['dataset'], _py[0])       
-    #   np.savez(filename, **out) 
-    return raster, probability, linescores_rast
+       if save:
+           out = {}
+           for k, v in z.iteritems():
+               out[k] = v
+           for q in range(np.shape(probout)[1]):
+#	   import pdb; pdb.set_trace()
+               indice=np.where(out['record']['px']==q)
+               if np.shape(indice)[1] == 0:
+	           continue
+	       out['record']['consec'][indice] = consecout[np.unique(rec['py']),q,:] 
+	       out['record']['break'][indice] = breakout[np.unique(rec['py']),q,:] 
+	       out['record']['status'][indice] = statusout[np.unique(rec['py']),q,:] 
+	       out['record']['probability'][indice] = probout[np.unique(rec['py']),q,:] 
+           filename = get_output_name(dataset_config['dataset'], _py[0])       
+           np.savez(filename, **out) 
+    return raster, probout, linescores_rast
 
