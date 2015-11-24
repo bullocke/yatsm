@@ -42,13 +42,14 @@ if hasattr(plt, 'style') and 'ggplot' in plt.style.available:
               help='Number of folds in cross validation (default: 3)')
 @click.option('--seed', nargs=1, type=click.INT,
               help='Random number generator seed')
+@click.option('--multipath', '-m', multiple=False, nargs=2, metavar=('<YATSMlist>','<shapefile>'),
+              help='CSV with list of YATSM config files', default=False)
 @click.option('--plot', is_flag=True, help='Show diagnostic plots')
 @click.option('--diagnostics', is_flag=True, help='Run K-Fold diagnostics')
 @click.option('--overwrite', is_flag=True, help='Overwrite output model file')
-@click.option('--multiple', is_flag=True, help='Use multipe path rows?')
 @click.pass_context
 def train(ctx, config, classifier_config, model, n_fold, seed,
-          plot, diagnostics, overwrite):
+          plot, diagnostics, overwrite, YATSMlist):
     """
     Train a classifier from `scikit-learn` on YATSM output and save result to
     file <model>. Dataset configuration is specified by <yatsm_config> and
@@ -99,9 +100,9 @@ def train(ctx, config, classifier_config, model, n_fold, seed,
 
     if not has_cache or regenerate_cache:
         logger.debug('Reading in X/y')
-        if monitor:
+        if YATSMlist:
            X, y, row, col, labels = get_mult_train(shape, YATSMlist)
-	else:
+     	else:
            X, y, row, col, labels = get_training_inputs(cfg)
         logger.debug('Done reading in X/y')
     else:
@@ -338,7 +339,7 @@ def get_mult_train(shape, YATSMfile):
 	YATSMfile (np array): CSV of YATSM config files
         cfg (dict): YATSM configuration dictionary
 	prs (array): Array of Path Rows used in training
- 
+
     Returns:
         X (np.ndarray): matrix of feature inputs for each training data sample
         y (np.ndarray): array of labeled training data samples
@@ -359,22 +360,25 @@ def get_mult_train(shape, YATSMfile):
     with open(YATSMfile, 'rb') as f:
           reader = csv.reader(f)
 	  YATSMlist = list(reader)
-    
+
     #Rasterlist is list of example rasters
-    rasterlist=get_rast_list(YATSMlist) 
+    rastlist, outputlist, prlist=get_rast_list(YATSMlist)
 
-    #YATSM
 
-    prlist=get_prs(layer)
-
+    #prlist=get_prs(layer)
+    x=[]
+    y=[]
+    out_row=[]
+    out_col=[]
+    labels=[]
     #Loop over path rows, creating a memory vector for each
-    for i in prslist:
-	input_value_raster=rasterlist[i]
-        rast = gdal.Open(input_value_raster) 
+    for num,pr in enumerate(prlist):
+	    input_value_raster=rastlist[num]
+        rast = gdal.Open(input_value_raster)
         #Get srs stuff from raster list
         raster_srs = osr.SpatialReference()
         raster_srs.ImportFromWkt(rast.GetProjectionRef())
-        #Create memory vectors layer for feautres
+        #Create memory vectors layer for features
         driver = ogr.GetDriverByName('MEMORY')
         out_ds = driver.CreateDataSource('tmp')
         out_layer = out_ds.CreateLayer('out', geom_type=ogr.wkbPolygon, srs=raster_srs)
@@ -383,29 +387,34 @@ def get_mult_train(shape, YATSMfile):
         featureDefn = out_layer.GetLayerDefn()
         feature = ogr.Feature(featureDefn)
 	#Loop over layer and add appropriate features to memory vector
-	for feat in layer:
-	    Date = feature.GetField('PRs')	
-            if Date == i:
+ 	    for feat in layer:
+	        pathrow = feature.GetField('pathrow')
+            if pathrow == pr:
                 geom = feat.GetGeometryRef()
                 geom.Transform(coord_trans)
                 feature.SetGeometry(geom)
                 out_layer.CreateFeature(feat)
             else:
-		continue
+		        continue
 	#Now rasterize the memory vector to the extent of the example image
         memLayer = out_ds.GetLayer()
-	trainingraster= rasterize_mem(rast, memlayer)  
+	    trainingraster= rasterize_mem(rast, memlayer)
 
         #Now that we have the memory vector for that file we can do the training
-        x, y, out_row, out_col, labels = get_mult_training_inputs(cfg, raster, memlayer)
-
+        _x, _y, _out_row, _out_col, _labels = get_mult_training_inputs(cfg, raster, memlayer)
+        x.append(_x)
+        y.append(_y)
+        out_row.append(_out_row)
+        out_col.append(_out_col)
+        labels.append(_labels)
+    return np.array(x), np.array(y), np.array(out_row), np.array(out_col), np.array(labels)
 
 def rasterize_mem(raster, memlayer):
     """ Returns X features and y labels specified in config file
     Args:
 	raster (GDAL raster): Input example raster
 	memlayer (OGR Memory Array): memory layer with features for training
- 
+
     Returns:
         trainraster (GDAL Raster): Raster with training classes burned in
 	"""
@@ -426,7 +435,7 @@ def rasterize_mem(raster, memlayer):
     raster_srs.ImportFromWkt(raster.GetProjectionRef())
     target_ds.SetProjection(raster_srs.ExportToWkt())
      # Rasterize zone polygon to raster
-    gdal.RasterizeLayer(target_ds, [1], memlayer, options = ["ATTRIBUTE=Class"])    
+    gdal.RasterizeLayer(target_ds, [1], memlayer, options = ["ATTRIBUTE=Class"])
 
     return target_ds
 
@@ -435,7 +444,7 @@ def get_prs(layer):
     """ Get the Path Rows we will be using for training
     Args:
 	shape (OGR vector): ROI shapefile. One column is ROI, one is PathRow
- 
+
     Returns:
         prs (np.ndarray): array with list of prs in ROIs """
 
@@ -541,9 +550,9 @@ def get_mult_training_inputs(cfg,trainingraster, trainingvector, exit_on_missing
 
 
 def get_rast_list(YATSMlist):
-        """ 
+        """
 	Args:
-	
+
 	Returns:
 	rasterlist (..): List of training images
         outputlist (..): List of paths to YATSM output folders
@@ -554,7 +563,9 @@ def get_rast_list(YATSMlist):
     outputlist=[]
     PRlist=[]
     for yat in YATSMlist:
-	cfg = parse_config_file(yat)	
+	cfg = parse_config_file(yat)
         rastlist.append(cfg['classification']['training_image'])
         outputlist.append(cfg['dataset']['output'])
         PRlist.append(cfg['classification']['pathrow'])
+
+    return rastlist, outputlist, PRlist
