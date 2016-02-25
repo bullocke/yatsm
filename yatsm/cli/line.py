@@ -33,6 +33,8 @@ logger_algo = logging.getLogger('yatsm_algo')
 @options.arg_total_jobs
 @click.option('--check_cache', is_flag=True,
               help='Check that cache file contains matching data')
+@click.option('--vza', is_flag=True,
+              help='Use a VZA threshold for MODIS images')
 @click.option('--resume', is_flag=True,
               help='Do not overwrite preexisting results')
 @click.option('--do-not-run', is_flag=True,
@@ -41,7 +43,7 @@ logger_algo = logging.getLogger('yatsm_algo')
               help='Show verbose debugging messages in YATSM algorithm')
 @click.pass_context
 def line(ctx, config, job_number, total_jobs,
-         resume, check_cache, do_not_run, verbose_yatsm):
+         resume, check_cache, do_not_run, verbose_yatsm, vza):
     if verbose_yatsm:
         logger_algo.setLevel(logging.DEBUG)
 
@@ -143,15 +145,18 @@ def line(ctx, config, job_number, total_jobs,
             _Y = Y.take(col, axis=2)
             # Mask
             idx_mask = cfg['dataset']['mask_band'] - 1
+	    import pdb; pdb.set_trace()
             valid = cyprep.get_valid_mask(
                 _Y,
                 cfg['dataset']['min_values'],
                 cfg['dataset']['max_values']).astype(bool)
-            valid *= np.in1d(_Y.take(idx_mask, axis=0),
-                             cfg['dataset']['mask_values'],
-                             invert=True).astype(np.bool)
-#            valid = np.logical_and(_Y[10, :] <= 3500, _Y[idx_mask, :] >= 1,
-#                           np.all(_Y >= -1000, axis=0))
+	    if vza:
+                valid = np.logical_and(_Y[10, :] <= 3500, _Y[idx_mask, :] >= 1,
+                        np.all(_Y >= -1000, axis=0))
+	    else:
+                valid *= np.in1d(_Y.take(idx_mask, axis=0),
+                                 cfg['dataset']['mask_values'],
+                                 invert=True).astype(np.bool)
             _Y = np.delete(_Y, idx_mask, axis=0)[:, valid]
             _X = X[valid, :]
             _dates = dates[valid]

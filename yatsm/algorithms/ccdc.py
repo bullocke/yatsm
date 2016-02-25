@@ -67,7 +67,7 @@ class CCDCesque(YATSM):
                  lm=sklearn.linear_model.Lasso(alpha=20),
                  consecutive=5, threshold=2.56, min_obs=None, min_rmse=None,
                  retrain_time=365.25, screening='RLM', screening_crit=400.0,
-                 remove_noise=True, green_band=1, swir1_band=4,
+                 remove_noise=True, green_band=1, swir1_band=2,
                  dynamic_rmse=False, slope_test=False, idx_slope=1):
         # Parent sets up test_indices and lm
         super(CCDCesque, self).__init__(test_indices, lm)
@@ -126,7 +126,8 @@ class CCDCesque(YATSM):
             ('py', 'u2'),
 	    ('status', 'i4'),
 	    ('probability', 'i4'),
-	    ('consec', 'i4')
+	    ('consec', 'i4'),
+	    ('detect', 'i4')
         ])
         record_template['px'] = getattr(self, 'px', 0)
         record_template['py'] = getattr(self, 'py', 0)
@@ -432,12 +433,18 @@ class CCDCesque(YATSM):
         mag = np.linalg.norm(np.abs(scores), axis=1)
         mag2 = np.where(mag > self.threshold)
 	#change 734502 to date your looking for with date.fromordinal or to ordinal
-       # if (np.shape(mag2)[1] > (self.consecutive - 2)) & (self.X[self.here + 1, 1] > 734502):
+#        if (np.shape(mag2)[1] > (self.consecutive - 2)) & (self.X[self.here + 1, 1] > 734502):
+#        if (np.all(mag > self.threshold)) & (self.X[self.here + 1, 1] > 734502):
         if np.all(mag > self.threshold):
             logger.debug('CHANGE DETECTED')
 
             # Record break date
             self.record[self.n_record]['break'] = self.dates[self.here + 1]
+	    #import pdb; pdb.set_trace()
+	    if ((self.here+5) - self.dates.shape[0]) <= 0:
+                self.record[self.n_record]['detect'] = self.dates[self.here + 5]
+	    else:
+                self.record[self.n_record]['detect'] = self.dates[self.here + 1]
             # Record magnitude of difference for tested indices
             self.record[self.n_record]['magnitude'][self.test_indices] = \
                 np.mean(scores, axis=0)
@@ -451,6 +458,9 @@ class CCDCesque(YATSM):
             # Reset _X and _Y for re-training
             self._X = self.X
             self._Y = self.Y
+#            if ((self.here+10) - self.dates.shape[0]) <= 10:
+#                 self.start = self.here + 10
+#            else:
             self.start = self.here + 1
 
             self.trained_date = 0

@@ -255,7 +255,7 @@ def refit_record(model, prefix, predictor, keep_regularized=False):
                 nonzero = np.nonzero(rec['coef'][:, i_y])[0]
                 if nonzero.size == 0:
                     refit[i_rec][refit_rmse] = rec['rmse']
-                    #continue
+                    continue
             else:
                 nonzero = np.arange(n_series)
 

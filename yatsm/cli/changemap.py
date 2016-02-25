@@ -11,7 +11,7 @@ from osgeo import gdal
 
 from yatsm.cli import options
 from yatsm.utils import find_results, iter_records, write_output
-
+from yatsm.cli.map import find_result_attributes
 gdal.AllRegister()
 gdal.UseExceptions()
 
@@ -26,7 +26,7 @@ WARN_ON_EMPTY = False
 @click.command(
     short_help='Map change found by YATSM algorithm over time period')
 @click.argument('map_type', metavar='<map_type>',
-                type=click.Choice(['first', 'last', 'num']))
+                type=click.Choice(['first', 'last', 'num', 'class']))
 @options.arg_date(var='start_date', metavar='<start_date>')
 @options.arg_date(var='end_date', metavar='<end_date>')
 @options.arg_output
@@ -36,6 +36,8 @@ WARN_ON_EMPTY = False
 @options.opt_date_format
 @options.opt_nodata
 @options.opt_format
+@click.option('--band', '-b', multiple=True, metavar='<band>', type=int,
+              help='Bands to export for coefficient/prediction maps')
 @click.option('--out_date', 'out_date_frmt', metavar='<format>',
               default='%Y%j', show_default=True, help='Output date format')
 @click.option('--warn-on-empty', is_flag=True,
@@ -43,10 +45,12 @@ WARN_ON_EMPTY = False
 @click.option('--magnitude', is_flag=True,
               help='Add magnitude of change as extra image '
                    '(pattern is [name]_mag[ext])')
+@click.option('--detect', is_flag=True,
+              help='Create map of dates change is detected, not date it happened ')
 @click.pass_context
 def changemap(ctx, map_type, start_date, end_date, output,
-              root, result, image, date_frmt, ndv, gdal_frmt, out_date_frmt,
-              warn_on_empty, magnitude):
+              root, result, image, date_frmt, ndv, gdal_frmt, out_date_frmt, band,
+              warn_on_empty, magnitude, detect):
     """
     Examples: TODO
     """
@@ -64,7 +68,7 @@ def changemap(ctx, map_type, start_date, end_date, output,
 
     if map_type in ('first', 'last'):
         changemap, magnitudemap, magnitude_indices = get_datechangemap(
-            start_date, end_date, result, image_ds,
+            start_date, end_date, result, image_ds, detect,
             first=map_type == 'first', out_format=out_date_frmt,
             magnitude=magnitude,
             ndv=ndv, pattern=_result_record
@@ -92,6 +96,11 @@ def changemap(ctx, map_type, start_date, end_date, output,
         write_output(changemap, output, image_ds, gdal_frmt, ndv,
                      band_names=band_names)
 
+    elif map_type == 'class':
+	changemap = get_NRT_class(
+            start_date, end_date, band, result, image_ds,
+            ndv=ndv, pattern=_result_record
+        )
     image_ds = None
 
 
@@ -143,8 +152,72 @@ def get_magnitude_indices(results):
         return np.nonzero(np.any(rec_array[changed]['magnitude'] != 0))[0]
 
 
+def get_NRT_class(start, end, band, result, image_ds,
+            ndv=ndv, pattern=_result_record
+        )
+    """ Output a raster with forest/non forest classes for time period specied. 
+
+    Args:
+        date (int): Ordinal date for prediction image
+        result_location (str): Location of the results
+        bands (list): Bands to predict
+        coefs (list): List of coefficients to output
+        image_ds (gdal.Dataset): Example dataset
+        prefix (str, optional): Use coef/rmse with refit prefix (default: '')
+        after (bool, optional): If date intersects a disturbed period, use next
+            available time segment (default: False)
+        before (bool, optional): If date does not intersect a model, use
+            previous non-disturbed time segment (default: False)
+        qa (bool, optional): Add QA flag specifying segment type (intersect,
+            after, or before) (default: False)
+        ndv (int, optional): NoDataValue (default: -9999)
+        pattern (str, optional): filename pattern of saved record results
+
+    Returns:
+        tuple: A tuple (np.ndarray, list) containing the 3D numpy.ndarray of
+            with the first band:
+		1 = stable forest 2 = stable nonforest 3 = forest to nonforest
+            second band:
+		date of forest to nonforest
+    """
+
+    #TDODS: Make band not hard coded to 1
+
+    # Find results
+    records = find_results(result_location, pattern)
+
+    # Find result attributes to extract
+    i_bands, i_coefs, use_rmse, coef_names, _, _ = find_result_attributes(
+        records, 1, 'all', prefix=prefix)
+    import pdb; pdb.set_trace()
+    for a, rec in iter_records(records):
+        # X location of each place that at some point is not forest
+        px_all = rec['px'][np.where((rec['start'] >= start))]
+	#px_forest = rec['px'][ox_all][np.where
+        # Count occurrences of changed pixel locations
+        bincount = np.bincount(px_changed)
+        # How many changes for unique values of px_changed?
+        n_change = bincount[np.nonzero(bincount)[0]]
+
+        # Add in the values
+        px = np.unique(px_changed)
+        py = rec['py'][np.in1d(px, rec['px'])]
+        raster[py, px] = n_change
+    
+    # Setup output band names
+    band_names = ['class','deforestation_year']
+    n_out_bands = 2
+
+
+    logger.debug('Allocating memory...')
+    raster = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_out_bands),
+                     dtype=np.float32) * ndv
+
+    logger.debug('Processing results')
+    return raster
+
 # MAPPING FUNCTIONS
-def get_datechangemap(start, end, result_location, image_ds,
+def get_datechangemap(start, end, result_location, image_ds, detect,
                       first=False,
                       out_format='%Y%j',
                       magnitude=False,
@@ -187,24 +260,39 @@ def get_datechangemap(start, end, result_location, image_ds,
 	#remove coef for non-negative slopes only
 #        index = np.where((rec['break'] >= start) &
 #                         (rec['break'] <= end) & (rec['coef'][:,1,:][:,1] <= 0))[0]
-
-        index = np.where((rec['break'] >= start) &
-                         (rec['break'] <= end))[0]
+#        index = np.where((rec['end'] > 0))[0]
+#        index = np.where((rec['break'] >= start) &
+#                         (rec['break'] <= end))[0]
+        index = np.where((rec['start'] >= start) &
+                         (rec['start'] <= end))[0]
         if first:
             _, _index = np.unique(rec['px'][index], return_index=True)
             index = index[_index]
-
-        if index.shape[0] != 0:
-            if out_format != 'ordinal':
-                dates = np.array([int(dt.fromordinal(_d).strftime(out_format))
-                                  for _d in rec['break'][index]])
-                datemap[rec['py'][index], rec['px'][index]] = dates
-            else:
-                datemap[rec['py'][index], rec['px'][index]] = \
-                    rec['break'][index]
-            if magnitude:
-                magnitudemap[rec['py'][index], rec['px'][index], :] = \
-                    rec[index]['magnitude'][:, magnitude_indices]
+        if detect:
+            if index.shape[0] != 0:
+                if out_format != 'ordinal':
+		    #import pdb; pdb.set_trace()
+                    dates = np.array([int(dt.fromordinal(_d).strftime(out_format))
+                                     for _d in rec['detect'][index]])
+                    datemap[rec['py'][index], rec['px'][index]] = dates
+                else:
+                    datemap[rec['py'][index], rec['px'][index]] = \
+                        rec['detect'][index]
+                if magnitude:
+                    magnitudemap[rec['py'][index], rec['px'][index], :] = \
+                        rec[index]['magnitude'][:, magnitude_indices]
+	else:
+            if index.shape[0] != 0:
+                if out_format != 'ordinal':
+                    dates = np.array([int(dt.fromordinal(_d).strftime(out_format))
+                                     for _d in rec['start'][index]])
+                    datemap[rec['py'][index], rec['px'][index]] = dates
+                else:
+                    datemap[rec['py'][index], rec['px'][index]] = \
+                        rec['start'][index]
+                if magnitude:
+                    magnitudemap[rec['py'][index], rec['px'][index], :] = \
+                        rec[index]['magnitude'][:, magnitude_indices]
 
     if magnitude:
         return datemap, magnitudemap, magnitude_indices

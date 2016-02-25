@@ -36,7 +36,7 @@ WARN_ON_EMPTY = False
 
 @click.command(short_help='Make map of YATSM output for a given date')
 @click.argument('map_type', metavar='<map_type>',
-                type=click.Choice(['coef', 'predict', 'class', 'pheno']))
+                type=click.Choice(['coef', 'predict', 'class', 'pheno', 'class']))
 @options.arg_date()
 @options.arg_output
 @options.opt_rootdir
@@ -133,6 +133,11 @@ def map(ctx, map_type, date, output,
         )
     elif map_type == 'pheno':
         raster, band_names = get_phenology(
+            date, result, image_ds,
+            after=after, before=before, qa=qa,
+            ndv=ndv)
+    elif map_type == 'class':
+	raster, band_names = get_NRT_class(
             date, result, image_ds,
             after=after, before=before, qa=qa,
             ndv=ndv)
@@ -247,15 +252,15 @@ def find_indices(record, date, after=False, before=False):
 
     """
     #for before given your okay with there being a break
-    if before:
-	index = np.where((record['start'] <= date) & (record['end'] >= (date-2000)))[0]
-#	import pdb; pdb.set_trace()
-	yield _before_qa, index
-
 #    if before:
-#        # Model before, as long as it didn't change
-#        index = np.where((record['end'] <= date) & (record['break'] == 0))[0]
-#        yield _before_qa, index
+#	index = np.where((record['start'] <= date) & (record['end'] >= (date-2000)))[0]
+#	import pdb; pdb.set_trace()
+#	yield _before_qa, index
+    #import pdb; pdb.set_trace()
+    if before:
+        # Model before, as long as it didn't change
+        index = np.where((record['end'] <= date) & (record['break'] == 0))[0]
+        yield _before_qa, index
 
     if after:
         # First model starting after date specified
@@ -337,7 +342,6 @@ def get_classification(date, result_location, image_ds,
                 raster[rec['py'][index], rec['px'][index], -1] = _qa
 
     return raster, band_names
-
 
 def get_coefficients(date, result_location, image_ds,
                      bands, coefs,

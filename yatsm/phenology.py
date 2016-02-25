@@ -222,8 +222,6 @@ class LongTermMeanPhenology(object):
         spl_pred = CRAN_spline(pad_doy, pad_evi_norm, spar=0.55)
         evi_smooth = spl_pred(np.arange(1, 366))
 
-        # Check correlation
-        pheno_cor = np.corrcoef(evi_smooth[yeardoy[:, 1] - 1], evi_norm)[0, 1]
 
         # Separate into spring / autumn
         peak_doy = np.argmax(evi_smooth)

@@ -21,6 +21,7 @@ gdal.UseExceptions()
 
 logger = logging.getLogger('yatsm')
 
+result_location = '/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/sample_data/YATSM/'
 pattern = '*npz'
 _result_record = 'yatsm_r*'
 
@@ -53,6 +54,8 @@ def monitor(ctx, config, date, output,
         - Any notes?
     """
 
+#    import pdb; pdb.set_trace() 
+    dataset_config = parse_config_file(config)
     try:
         image_ds = gdal.Open(image, gdal.GA_ReadOnly)
     except:
@@ -60,15 +63,13 @@ def monitor(ctx, config, date, output,
         raise
 
 
-    dataset_config = parse_config_file(config)
 
     #Open new mage as array
     image_ar = image_ds.ReadAsArray()
     date = date.toordinal()
     band_names = 'Probability'
 
-    #get prediction for image
-    raster, probability, linescores_rast = get_mon_predictions(
+    raster, probability, linescores_rast = get_mon_prediction(
             date, result, image_ds, image_ar, dataset_config, save, outputrast,
             band,
             ndv=ndv
@@ -77,52 +78,26 @@ def monitor(ctx, config, date, output,
 
     #Determine what to output
     if outputrast == "ChangeScore":
-	_outputrast = linescores_rast*10
+	_outputrast = linescores_rast
+    linescores_rast = linescores_rast*10
     write_mon_output(_outputrast, output, image_ds,
                  gdal_frmt, ndv)
 
-
-def do_monitor(ctx, config, output,
-        root, result, image, date_frmt, ndv, gdal_frmt, band, outputrast, save, num, lines):
-    """
-    Main function. Should be broken up by line. 
-    """
-    dataset_config = parse_config_file(config)
-
-
-def get_dates():
-    """
-    Return array containing dates to be predicted and monitored
-    """
-
-def check_date():
-    """
-    Check to make sure the newest images are later than the previous ones. Return false if previous end dates are past images. 
-    """
-
-def get_x():
-    """
-    Organize input images and return x and y for images to monitor
-    """
-
-def get_y():
-    """
-    Read in a line and return image values in array form.
-    """
-
-def check_date():
-    """
-    Checks if date input is before or after end of previous run
-    """
-    return date_status
-
-def get_mon_prob(linescores, lineconsec, image_ar, py, px, date, linebreak, threshold, test_ind, cloudthreshold, blue, swir, shadowthreshow):
+def get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight, image_ar, py, px, date, linebreak):
+    threshold = -3.5
+    ndvi=1
+    cloudthreshold=15
+    blue=4
+    swir=6
+    shadowthreshold=-2
+    probweight=-3.5
   #  mag = np.linalg.norm(np.abs(linescores), axis=2)
     cloudprob=np.ones((1,np.shape(linescores)[1]))
     shadowprob=np.ones((1,np.shape(linescores)[1]))
     _px=px[0]
     #loop over pixels
     for i in range(np.shape(linescores)[1]):
+	#If it's already changed just leave it.
 	if lineprob[0,i,0] >= 100:
 	    continue
 	#First do the cloud test:
@@ -134,14 +109,33 @@ def get_mon_prob(linescores, lineconsec, image_ar, py, px, date, linebreak, thre
 	if linescores[0,i,swir] < shadowthreshold:
 	    shadowprob[0,i]=0
 	#First check if it passes NDVI threshold
-	if linescores[0,i,test_ind] < threshold:
+	if linescores[0,i,ndvi] < threshold:
 	    lineprob[0,i,0] = lineprob[0,i,0] + (((cloudprob[0,i] * shadowprob[0,i]) * (lineconsec[0,i,0])) * 10)  
 	#One means last one was change
+            linestatus[0,i,0] = 1
 	    lineconsec[0,i,0] += 1
 	    if lineprob[0,i,0] >= 100:
 	        linebreak[0,i,0] = date
 	#But if it's not change, and last one was...set it to -1 to not start over. 
-    return lineprob[0,:,0], lineconsec[0,:,0], linebreak[0,:,0]
+	elif (linestatus[0,i,0] == 1) and ((vzaweight[0,i])[0] > 1):
+	    lineprob[0,i,0] = 0
+	    lineconsec[0,i,0] = 0
+	    linestatus[0,i,0] = 0        
+	    continue 
+	elif (linestatus[0,i,0] == 1) and ((vzaweight[0,i])[0] < 1):
+	    continue 
+	#If the line status is 0 and it's not above thresh, prob is 0. 
+	elif linestatus[0,i,0] == 0:
+	    lineprob[0,i,0] = 0
+	    lineconsec[0,i,0] = 0
+	    linestatus[0,i,0] = 0        
+	    continue 
+	#If it's below threshold and it's negative one - this means the last one was below. Nothing changes but status switches to 0. 
+	#TODO: Should nothing change or should it be divided by 2? 	
+	elif linestatus[0,i,0] == -1:
+	    linestatus[0,i,0] = 0        
+	    continue 
+    return lineprob[0,:,0], linestatus[0,:,0], lineconsec[0,:,0], linebreak[0,:,0]
 
 def get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp, outputrast):
 
@@ -164,6 +158,8 @@ def get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp, outputrast):
 
 	"""
     scores=np.zeros((np.shape(raster)[1],np.shape(raster)[2]))
+    vzaweight=np.zeros((np.shape(raster)[1],1))
+
     for _band in i_bands: 
         for px in _px:
             py=_py[0]
@@ -172,7 +168,10 @@ def get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp, outputrast):
  #               continue
             im_val=image_ar[_band,py,px]
             scores[px,_band]=((im_val.astype(float) - raster[py,px,_band])/rmse[0,px,_band])
-    return scores
+	    if outputrast == 'Probability':
+	        vzaweight[px] = 3000.0 / image_ar[10,py,px]
+
+    return scores, vzaweight
 
 
 def write_mon_output(raster, output, image_ds, gdal_frmt, ndv):
@@ -217,7 +216,7 @@ def write_mon_output(raster, output, image_ds, gdal_frmt, ndv):
     ds = None
 
 
-def find_mon_result_attributes(results, bands, coefs, config, prefix=''):
+def find_mon_result_attributes(results, bands, coefs, prefix=''):
     """ Returns attributes about the dataset from result files
 
     Args:
@@ -234,8 +233,8 @@ def find_mon_result_attributes(results, bands, coefs, config, prefix=''):
             (i_bands, i_coefs, use_rmse, design, design_info)
 
     """
-    _coef = 'coef' 
-    _rmse = 'rmse' 
+    _coef = prefix + 'coef' if prefix else 'coef'
+    _rmse = prefix + 'rmse' if prefix else 'rmse'
 
     n_bands, n_coefs = None, None
     design = None
@@ -243,15 +242,8 @@ def find_mon_result_attributes(results, bands, coefs, config, prefix=''):
         try:
             _result = np.load(r)
             rec = _result['record']
-            if 'metadata' in _result.files:
-                logger.debug('Finding X design info for version>=v0.5.4')
-                md = _result['metadata'].item()
-                design = md['YATSM']['design']
-                design_str = md['YATSM']['design_matrix']
-            else:
-                logger.debug('Finding X design info for version<0.5.4')
-                design = _result['design_matrix'].item()
-                design_str = _result['design'].item()
+            design = _result['design_matrix'].item()
+            design_str = _result['design'].item()
         except:
             continue
 
@@ -321,21 +313,13 @@ def find_mon_indices(record, date, after=False, before=False):
         indices.
 
     """
-    #TODO MOST URGENT FIX THIS!!!
-    #index = np.where((record['end'] <= date))[0]
-    #import pdb; pdb.set_trace()
-    #TODO get last date. see if date input is before or after end. 
-    #index = np.where((record['start'] >= 0) & (record['break'] == 0))[0]
-    index = np.where((record['start'] >= 0))[0]
-    #_, _index = np.unique(record['px'][index], return_index=True)
-    #index = index[_index]
+
+    #This needs to be the most RECENT model, right now it's the first. Ok for stable landcovers, but not ideal. 
+    index = np.where((record['end'] <= date))[0]
     yield index
 
 
-
-
-
-def get_mon_predictions(date, result_location, image_ds, image_ar, dataset_config, save, outputrast,
+def get_mon_prediction(date, result_location, image_ds, image_ar, dataset_config, save, outputrast,
 		   bands='all', prefix='', ndv=-9999, pattern=_result_record):
 
     """ Get prediction for date of input image.
@@ -357,9 +341,10 @@ def get_mon_predictions(date, result_location, image_ds, image_ar, dataset_confi
 
     # Find result attributes to extract
     i_bands, _, _, _, design, design_info = find_mon_result_attributes(
-        records, bands, None, dataset_config, prefix=prefix)
+        records, bands, None, prefix=prefix)
     n_bands = len(i_bands)
     n_i_bands = len(i_bands)
+
     # Create X matrix from date -- ignoring categorical variables
     if re.match(r'.*C\(.*\).*', design):
         logger.warning('Categorical variable found in design matrix not used'
@@ -376,32 +361,27 @@ def get_mon_predictions(date, result_location, image_ds, image_ar, dataset_confi
     logger.debug('Allocating memory')
 
     raster = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
-                     dtype=np.float16) * int(ndv)
+                     dtype=np.int16) * int(ndv)
     probout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
     breakout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
+    statusout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
     consecout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
     linescores_rast = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
-		     dtype=np.float16) * int(ndv)
+		     dtype=np.int16) * int(ndv)
     logger.debug('Processing results')
 
     temp=0
     csv=[]
-
-    #Define parameters. This should be from the parameter file. 
-    threshold = dataset_config['CCDCesque']['threshold']
-    test_ind = dataset_config['CCDCesque']['test_indices']
-    cloudthreshold = dataset_config['CCDCesque']['screening_crit']
-    green = dataset_config['dataset']['green_band']
-    swir = dataset_config['dataset']['swir1_band']
-    shadowthreshold = 0 - (dataset_config['CCDCesque']['screening_crit'])
-
     for z, rec in iter_records(records, warn_on_empty=True):
 	#looping over indices
        temp+=1
        linescores = np.zeros((1, image_ds.RasterXSize, n_bands),
+                     dtype=np.float32) * int(ndv)
+       vzaweight = np.zeros((1, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
        
        rmse = np.ones((1, image_ds.RasterXSize, n_bands),
@@ -412,14 +392,13 @@ def get_mon_predictions(date, result_location, image_ds, image_ar, dataset_confi
 
        linebreak = np.zeros((1, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
+       linestatus = np.zeros((1, image_ds.RasterXSize, 1),
+                     dtype=np.float32) * int(ndv)
        lineprob = np.zeros((1, image_ds.RasterXSize, 1),
                      dtype=np.float32) * int(ndv)
-
        for index in find_mon_indices(rec, date):
            if index.shape[0] == 0:
                 continue
-
-	   #Test is 
 
            # Calculate prediction
            _coef = rec['coef'].take(index, axis=0).\
@@ -434,53 +413,39 @@ def get_mon_predictions(date, result_location, image_ds, image_ar, dataset_confi
 	   #Calculate RMSE
 	   rmse[:, rec['px'][index], :n_i_bands] = rec['rmse'][index][:, i_bands]
 
-
+           #Calculate how many (if any) consective observations have been above threshold
+	   lineconsec[:, rec['px'][index],0] = rec['consec'][index][:,]
 	   #Initation array to save break dates
 	   linebreak[:, rec['px'][index],0] = rec['break'][index][:,]
+	   #Calculate the 'status' of the pixel. Necessary since we are allowing one consecutive under the threshold
+	   linestatus[:, rec['px'][index],0] = rec['status'][index][:,]
 
+	   lineprob[:, rec['px'][index],0] = rec['probability'][index][:,]
 	   #calculate change score for each band 
-	   try:
-	       linescores_rast[rec['py'][index], :, :n_i_bands] = get_mon_scores(raster, image_ar, _px, 
-	     	   							         _py, i_bands, rmse, temp, 
-									         outputrast)
-	   except:
-	       import pdb; pdb.set_trace()
-	       linescores_rast[rec['py'][index], :, :n_i_bands] = get_mon_scores(raster, image_ar, _px, 
-	     	   							         _py, i_bands, rmse, temp, 
-									         outputrast)[0]
-	       print "excepted" 
+	   #From here through get_mon_prob around half a second
+	   linescores[:,:,:], vzaweight[:,:,:] = get_mon_scores(raster, image_ar, _px, _py, i_bands, rmse, temp, outputrast)
+	   linescores_rast[rec['py'][index], :, :n_i_bands]=linescores
            py=np.unique(rec['py'])
-
 	   #For testing purposes, save the scores
 	   testname='%s' % rec['py'][index][0]
-
-	   #If you are actually monitoring, get the probability of change
+	   #Calculate current probability
+	   probweights = 0
 	   if outputrast == 'Probability':
-               #Calculate how many (if any) consective observations have been above threshold
-               if not rec['consect'].dtype:
-	           lineconsec[:, rec['px'][index],0] = 0
-	       else:
-	           lineconsec[:, rec['px'][index],0] = rec['consec'][index][:,]
-               probout[np.unique(rec['py']),:,0], 
-	       consecout[np.unique(rec['py']),:,0], 
-	       breakout[np.unique(rec['py']),:,0] = get_mon_prob(linescores, 
-			                                         lineconsec, image_ar, py, rec['py'][index], 
-                                        		         date, linebreak, threshold, test_ind, 
-								 cloudthreshold,  blue, swir, shadowthreshow) 
-
-        #rec = nprfn.merge_arrays((rec, classified), flatten=True)
-
+               probout[np.unique(rec['py']),:,0], statusout[np.unique(rec['py']),:,0], consecout[np.unique(rec['py']),:,0], breakout[np.unique(rec['py']),:,0] = get_mon_prob(linescores, linestatus, lineconsec, probweights, lineprob, vzaweight, image_ar, py, rec['py'][index], date, linebreak) 
+    #resave 
        if save:
            out = {}
            for k, v in z.iteritems():
                out[k] = v
            for q in range(np.shape(probout)[1]):
+#	   import pdb; pdb.set_trace()
                fulltime=end-beginning
                print "%s took %s time to run" % (py, fulltime)	
                if np.shape(indice)[1] == 0:
 	           continue
 	       out['record']['consec'][indice] = consecout[np.unique(rec['py']),q,:] 
 	       out['record']['break'][indice] = breakout[np.unique(rec['py']),q,:] 
+	       out['record']['status'][indice] = statusout[np.unique(rec['py']),q,:] 
 	       out['record']['probability'][indice] = probout[np.unique(rec['py']),q,:] 
            filename = get_output_name(dataset_config['dataset'], _py[0])       
            np.savez(filename, **out)

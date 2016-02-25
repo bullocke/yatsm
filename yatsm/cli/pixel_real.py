@@ -25,11 +25,6 @@ from yatsm import _cyprep as cyprep
 from yatsm.utils import csvfile_to_dataframe, get_image_IDs
 from yatsm.reader import read_pixel_timeseries
 from yatsm.regression.transforms import harm  # noqa
-from rpy2 import robjects as ro
-from rpy2.robjects.packages import importr
-import rpy2.robjects.numpy2ri
-rpy2.robjects.numpy2ri.activate()
-Rstats = importr('stats')
 
 avail_plots = ['TS', 'DOY', 'VAL']
 
@@ -164,10 +159,7 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
     with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
         for _plot in plot:
             if _plot == 'TS':
-	        fig, ax1 = plt.subplots()
-                ax1.scatter(dates, Y[band,:], c='k', marker='o', edgecolors='black', s=35)
-		ax1.set_axis_bgcolor('white')
-                plt.xlabel('Date') 
+                plot_TS(dates, Y[band, :])
             elif _plot == 'DOY':
                 plot_DOY(dates, Y[band, :], mpl_cmap)
             elif _plot == 'VAL':
@@ -176,57 +168,23 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
             if ylim:
                 plt.ylim(ylim)
 	        #plt.xlim((2005,2010))
-#            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
-            ax1.set_ylabel('Landsat TM/ETM Band {b}'.format(b=band + 1))
+            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
+            plt.ylabel('Band {b}'.format(b=band + 1))
 
-            plot_results(ax1, band, cfg['YATSM'], yatsm, plot_type=_plot)
+            plot_results(band, cfg['YATSM'], yatsm, plot_type=_plot)
 
             if embed and has_embed:
                 IPython_embed()
 
-            #plt.tight_layout()
-
-            radx=[date(2007, 1, 29), date(2007,8, 8), date(2007,11,11), date(2007,12,16), date(2008, 3, 18), date(2009, 2, 3), date(2009, 12, 22)]
-	    radyDN=[.259, .213, .229, .319, .201, .175, .133]
-            inc = [.2718, .2841, .2753, .281, .2811, .2759, .2667]
-	    sigma=(np.array(radyDN))*(np.array(inc))
-	    #rady=[.259, .213, .229, .319, .201, .175, .133]
-            rady = 10*np.log10(sigma)
-#	    rady = [(10 * (np.log10(x.astype(float)**2)) + (-83)) for x in np.array(radyDN)]
-            #rady = [(10 * np.log10((x/1000).astype(float)*(x/1000).astype(float)) + (-83)) for x in radyDN]
-	    x2 = np.array([dt.datetime.toordinal(d) for d in radx])
+            plt.tight_layout()
 #	    import pdb; pdb.set_trace()
-	    s = Rstats.smooth_spline(x2, np.array(rady), spar=1)
-	    xs = np.linspace(x2.min(), x2.max(), np.shape(x2)[0])
-	    ys_ob = Rstats.predict(s,xs)
-            ys = np.array(ys_ob)
-
-	    ax2 = ax1.twinx()
-	    ax2.set_axis_bgcolor('white')
-            ax2.scatter(radx, rady, c='r', marker='^', edgecolors='black', s=45, )
-            ax2.set_ylabel('Backscatter (db)')
-            ax1.set_ylim(750, 2250)
-            ax2.set_ylim(-20, -5)
-	    ax2.plot(ys[0,:], ys[1,:], linestyle='dashed', c='r', label='PALSAR Spline Fit')
-	    ax2.yaxis.label.set_size(15)
-	    ax1.xaxis.label.set_size(15)
-	    ax1.yaxis.label.set_size(15)
-	    plt.xlim((date(2005,1,1),date(2010,2,1)))
-	    lines, labels = ax1.get_legend_handles_labels()
-	    lines2, labels2 = ax2.get_legend_handles_labels()
-	    legend = ax2.legend(lines + lines2, labels + labels2, loc=9, prop={'size':14})
-	    legend.get_frame().set_facecolor('white')
-	    legend.get_frame().set_edgecolor('black')
-	    ax1.grid(b=True)
-	    ax2.grid(b=True)
-	    fig.set_size_inches(10, 4, forward=True)
-	    plt.savefig('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/combined_ts_DB3.png')
+	    plt.xlim((date(2005,1,1),date(2010,1,1)))
             plt.show()
 
 
 def plot_TS(dates, y):
     # Plot data
-    plt.scatter(dates, y, c='k', marker='o', edgecolors='black', s=35)
+    plt.scatter(dates, y, c='k', marker='o', edgecolors='none', s=35)
     plt.xlabel('Date')
 
 
@@ -235,7 +193,7 @@ def plot_DOY(dates, y, mpl_cmap):
     year = np.array([d.year for d in dates])
 
     sp = plt.scatter(doy, y, c=year, cmap=mpl_cmap,
-                     marker='o', edgecolors='black', s=35)
+                     marker='o', edgecolors='none', s=35)
     plt.colorbar(sp)
 
     months = mpl.dates.MonthLocator()  # every month
@@ -261,18 +219,17 @@ def plot_VAL(dates, y, mpl_cmap, reps=2):
     _y = np.tile(y, reps + 1)
 
     sp = plt.scatter(_doy, _y, c=_year, cmap=mpl_cmap,
-                     marker='o', edgecolors='black', s=35)
+                     marker='o', edgecolors='none', s=35)
     plt.colorbar(sp)
     plt.xlabel('Day of Year')
 
 
-def plot_results(ax1, band, yatsm_config, yatsm_model, plot_type='TS'):
+def plot_results(band, yatsm_config, yatsm_model, plot_type='TS'):
     step = -1 if yatsm_config['reverse'] else 1
     design = re.sub(r'[\+\-][\ ]+C\(.*\)', '', yatsm_config['design_matrix'])
 
     for i, r in enumerate(yatsm_model.record):
-        #label = 'Model {i}'.format(i=i)
-        label = 'CCDC Timeseries'
+        label = 'Model {i}'.format(i=i)
         if plot_type == 'TS':
             mx = np.arange(r['start'], r['end'], step)
             mX = patsy.dmatrix(design, {'x': mx}).T
@@ -295,8 +252,8 @@ def plot_results(ax1, band, yatsm_config, yatsm_model, plot_type='TS'):
 
             label = 'Model {i} - {yr}'.format(i=i, yr=yr_mid)
 
-        ax1.plot(mx_date, my, lw=2, label=label, c='black')
-        #plt.legend()
+        plt.plot(mx_date, my, lw=2, label=label)
+        plt.legend()
 
 
 def plot_lasso_debug(model):

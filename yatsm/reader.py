@@ -67,8 +67,9 @@ def read_image(image_filename, bands=None, dtype=None):
     try:
         ds = gdal.Open(image_filename, gdal.GA_ReadOnly)
     except:
-        logger.error('Could not read image {i}'.format(i=image_filename))
-        raise
+	ds = image_filename
+#        logger.error('Could not read image {i}'.format(i=image_filename))
+#        raise
 
     if bands:
         if not all([b in range(1, ds.RasterCount + 1) for b in bands]):

@@ -24,12 +24,13 @@ logger = logging.getLogger('yatsm')
 @options.arg_config_file
 @click.argument('algo', metavar='<trained algorithm>',
                 type=click.Path(readable=True, resolve_path=True))
+@click.option('--modis', is_flag=True, help='Use only MODIS bands 1-3')
 @options.arg_job_number
 @options.arg_total_jobs
 @click.option('--resume', is_flag=True,
               help="Resume classification (don't overwrite)")
 @click.pass_context
-def classify(ctx, config, algo, job_number, total_jobs, resume):
+def classify(ctx, config, algo, job_number, total_jobs, resume, modis):
     cfg = parse_config_file(config)
 
     df = csvfile_to_dataframe(cfg['dataset']['input_file'],
@@ -56,7 +57,7 @@ def classify(ctx, config, algo, job_number, total_jobs, resume):
             continue
 
         logger.debug('Classifying line {l}'.format(l=job_line))
-        classify_line(filename, classifier)
+        classify_line(filename, classifier, modis)
 
     logger.debug('Completed {n} lines in {m} minutes'.format(
         n=len(job_lines),
@@ -83,7 +84,7 @@ def try_resume(filename):
     return True
 
 
-def classify_line(filename, classifier):
+def classify_line(filename, classifier, modis):
     """ Use `classifier` to classify data stored in `filename`
     Args:
       filename (str): filename of stored results
@@ -97,13 +98,20 @@ def classify_line(filename, classifier):
         return
 
     # Rescale intercept term
-    coef = rec['coef'].copy()  # copy so we don't transform npz coef
+    if modis:
+        coef = rec['coef'][:,:,[0]].copy()  # copy so we don't transform npz coef
+    else:
+        coef = rec['coef'].copy()  # copy so we don't transform npz coef
     coef[:, 0, :] = (coef[:, 0, :] + coef[:, 1, :] *
                      ((rec['start'] + rec['end']) / 2.0)[:, np.newaxis])
 
     # Include RMSE for full X matrix
     newdim = (coef.shape[0], coef.shape[1] * coef.shape[2])
-    X = np.hstack((coef.reshape(newdim), rec['rmse']))
+    if modis:
+#	import pdb; pdb.set_trace()
+        X = np.hstack((coef.reshape(newdim), rec['rmse'][:,[0]]))
+    else:
+        X = np.hstack((coef.reshape(newdim), rec['rmse']))
 
     # Create output and classify
     classes = classifier.classes_
