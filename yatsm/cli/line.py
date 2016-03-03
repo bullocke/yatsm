@@ -145,7 +145,6 @@ def line(ctx, config, job_number, total_jobs,
             _Y = Y.take(col, axis=2)
             # Mask
             idx_mask = cfg['dataset']['mask_band'] - 1
-	    import pdb; pdb.set_trace()
             valid = cyprep.get_valid_mask(
                 _Y,
                 cfg['dataset']['min_values'],
@@ -157,6 +156,8 @@ def line(ctx, config, job_number, total_jobs,
                 valid *= np.in1d(_Y.take(idx_mask, axis=0),
                                  cfg['dataset']['mask_values'],
                                  invert=True).astype(np.bool)
+	   # if col > 2000:
+	   #     import pdb; pdb.set_trace()
             _Y = np.delete(_Y, idx_mask, axis=0)[:, valid]
             _X = X[valid, :]
             _dates = dates[valid]
@@ -196,6 +197,7 @@ def line(ctx, config, job_number, total_jobs,
             	output.extend(yatsm.record)
 
         logger.debug('    Saving YATSM output to %s' % out)
+        #import pdb; pdb.set_trace()
         np.savez(out,
                  version=__version__,
                  record=np.array(output),

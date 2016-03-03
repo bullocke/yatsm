@@ -83,6 +83,7 @@ entry_points = '''
     map=yatsm.cli.map:map
     changemap=yatsm.cli.changemap:changemap
     monitor=yatsm.cli.monitor:monitor
+    monitor_map=yatsm.cli.monitor_map:monitor_map
 '''
 
 setup_dict = dict(

@@ -34,7 +34,7 @@ X=[]
 Y=[]
 num=[]
 
-def get_train(shape, YATSMlist, cfg, prs):
+def get_train(shape, YATSMlist, prs):
 
     """ Returns X features and y labels specified in config file
     Args:

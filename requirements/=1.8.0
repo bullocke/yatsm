@@ -1,0 +1,270 @@
+Downloading/unpacking numpy
+  Running setup.py egg_info for package numpy
+    Running from numpy source directory.
+    
+    warning: no previously-included files matching '*.pyo' found anywhere in distribution
+    warning: no previously-included files matching '*.pyd' found anywhere in distribution
+Installing collected packages: numpy
+  Running setup.py install for numpy
+    Running from numpy source directory.
+    blas_opt_info:
+    blas_mkl_info:
+      libraries mkl,vml,guide not found in ['/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib', '/usr/lib64', '/usr/lib']
+      NOT AVAILABLE
+    
+    openblas_info:
+      libraries openblas not found in ['/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib', '/usr/lib64', '/usr/lib']
+      NOT AVAILABLE
+    
+    atlas_3_10_blas_threads_info:
+    Setting PTATLAS=ATLAS
+      libraries tatlas not found in ['/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib', '/usr/lib64/atlas', '/usr/lib64/atlas-sse3', '/usr/lib64/sse2', '/usr/lib64', '/usr/lib/atlas', '/usr/lib/atlas-3dnow', '/usr/lib/atlas-sse', '/usr/lib/atlas-sse3', '/usr/lib/atlas-sse2', '/usr/lib/sse2', '/usr/lib']
+      NOT AVAILABLE
+    
+    atlas_3_10_blas_info:
+      libraries satlas not found in ['/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib', '/usr/lib64/atlas', '/usr/lib64/atlas-sse3', '/usr/lib64/sse2', '/usr/lib64', '/usr/lib/atlas', '/usr/lib/atlas-3dnow', '/usr/lib/atlas-sse', '/usr/lib/atlas-sse3', '/usr/lib/atlas-sse2', '/usr/lib/sse2', '/usr/lib']
+      NOT AVAILABLE
+    
+    atlas_blas_threads_info:
+    Setting PTATLAS=ATLAS
+    Setting PTATLAS=ATLAS
+    Setting PTATLAS=ATLAS
+    Setting PTATLAS=ATLAS
+    /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/build/numpy/numpy/distutils/system_info.py:635: UserWarning: Specified path  is invalid.
+      warnings.warn('Specified path %s is invalid.' % d)
+    Setting PTATLAS=ATLAS
+      FOUND:
+        libraries = ['ptf77blas', 'ptcblas', 'atlas']
+        library_dirs = ['/usr/lib64/atlas']
+        language = c
+        define_macros = [('HAVE_CBLAS', None), ('NO_ATLAS_INFO', -1)]
+        include_dirs = ['/usr/include']
+    
+      FOUND:
+        libraries = ['ptf77blas', 'ptcblas', 'atlas']
+        library_dirs = ['/usr/lib64/atlas']
+        language = c
+        define_macros = [('HAVE_CBLAS', None), ('NO_ATLAS_INFO', -1)]
+        include_dirs = ['/usr/include']
+    
+    non-existing path in 'numpy/distutils': 'site.cfg'
+    F2PY Version 2
+    lapack_opt_info:
+    openblas_lapack_info:
+      libraries openblas not found in ['/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib', '/usr/lib64', '/usr/lib']
+      NOT AVAILABLE
+    
+    lapack_mkl_info:
+    mkl_info:
+      libraries mkl,vml,guide not found in ['/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib', '/usr/lib64', '/usr/lib']
+      NOT AVAILABLE
+    
+      NOT AVAILABLE
+    
+    atlas_3_10_threads_info:
+    Setting PTATLAS=ATLAS
+      libraries tatlas,tatlas not found in /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib
+      libraries lapack_atlas not found in /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib
+      libraries tatlas,tatlas not found in /usr/lib64/atlas
+      libraries lapack_atlas not found in /usr/lib64/atlas
+      libraries tatlas,tatlas not found in /usr/lib64/atlas-sse3
+      libraries lapack_atlas not found in /usr/lib64/atlas-sse3
+      libraries tatlas,tatlas not found in /usr/lib64/sse2
+      libraries lapack_atlas not found in /usr/lib64/sse2
+      libraries tatlas,tatlas not found in /usr/lib64
+      libraries lapack_atlas not found in /usr/lib64
+      libraries tatlas,tatlas not found in /usr/lib/atlas
+      libraries lapack_atlas not found in /usr/lib/atlas
+      libraries tatlas,tatlas not found in /usr/lib/atlas-3dnow
+      libraries lapack_atlas not found in /usr/lib/atlas-3dnow
+      libraries tatlas,tatlas not found in /usr/lib/atlas-sse
+      libraries lapack_atlas not found in /usr/lib/atlas-sse
+      libraries tatlas,tatlas not found in /usr/lib/atlas-sse3
+      libraries lapack_atlas not found in /usr/lib/atlas-sse3
+      libraries tatlas,tatlas not found in /usr/lib/atlas-sse2
+      libraries lapack_atlas not found in /usr/lib/atlas-sse2
+      libraries tatlas,tatlas not found in /usr/lib/sse2
+      libraries lapack_atlas not found in /usr/lib/sse2
+      libraries tatlas,tatlas not found in /usr/lib
+      libraries lapack_atlas not found in /usr/lib
+    <class 'numpy.distutils.system_info.atlas_3_10_threads_info'>
+      NOT AVAILABLE
+    
+    atlas_3_10_info:
+      libraries satlas,satlas not found in /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib
+      libraries lapack_atlas not found in /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib
+      libraries satlas,satlas not found in /usr/lib64/atlas
+      libraries lapack_atlas not found in /usr/lib64/atlas
+      libraries satlas,satlas not found in /usr/lib64/atlas-sse3
+      libraries lapack_atlas not found in /usr/lib64/atlas-sse3
+      libraries satlas,satlas not found in /usr/lib64/sse2
+      libraries lapack_atlas not found in /usr/lib64/sse2
+      libraries satlas,satlas not found in /usr/lib64
+      libraries lapack_atlas not found in /usr/lib64
+      libraries satlas,satlas not found in /usr/lib/atlas
+      libraries lapack_atlas not found in /usr/lib/atlas
+      libraries satlas,satlas not found in /usr/lib/atlas-3dnow
+      libraries lapack_atlas not found in /usr/lib/atlas-3dnow
+      libraries satlas,satlas not found in /usr/lib/atlas-sse
+      libraries lapack_atlas not found in /usr/lib/atlas-sse
+      libraries satlas,satlas not found in /usr/lib/atlas-sse3
+      libraries lapack_atlas not found in /usr/lib/atlas-sse3
+      libraries satlas,satlas not found in /usr/lib/atlas-sse2
+      libraries lapack_atlas not found in /usr/lib/atlas-sse2
+      libraries satlas,satlas not found in /usr/lib/sse2
+      libraries lapack_atlas not found in /usr/lib/sse2
+      libraries satlas,satlas not found in /usr/lib
+      libraries lapack_atlas not found in /usr/lib
+    <class 'numpy.distutils.system_info.atlas_3_10_info'>
+      NOT AVAILABLE
+    
+    atlas_threads_info:
+    Setting PTATLAS=ATLAS
+      libraries ptf77blas,ptcblas,atlas not found in /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib
+      libraries lapack_atlas not found in /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/lib
+      libraries lapack_atlas not found in /usr/lib64/atlas
+    <class 'numpy.distutils.system_info.atlas_threads_info'>
+    Setting PTATLAS=ATLAS
+    Setting PTATLAS=ATLAS
+    Setting PTATLAS=ATLAS
+    Setting PTATLAS=ATLAS
+      FOUND:
+        libraries = ['lapack', 'ptf77blas', 'ptcblas', 'atlas']
+        library_dirs = ['/usr/lib64/atlas']
+        language = f77
+        define_macros = [('NO_ATLAS_INFO', -1)]
+        include_dirs = ['/usr/include']
+    
+      FOUND:
+        libraries = ['lapack', 'ptf77blas', 'ptcblas', 'atlas']
+        library_dirs = ['/usr/lib64/atlas']
+        language = f77
+        define_macros = [('NO_ATLAS_INFO', -1)]
+        include_dirs = ['/usr/include']
+    
+    /project/earth/packages/Python-2.7.5/lib/python2.7/distutils/dist.py:267: UserWarning: Unknown distribution option: 'define_macros'
+      warnings.warn(msg)
+    unifing config_cc, config, build_clib, build_ext, build commands --compiler options
+    unifing config_fc, config, build_clib, build_ext, build commands --fcompiler options
+    build_src
+    building py_modules sources
+    building library "npymath" sources
+    customize Gnu95FCompiler
+    Found executable /usr/bin/gfortran
+    customize Gnu95FCompiler
+    customize Gnu95FCompiler using config
+    C compiler: gcc -pthread -fno-strict-aliasing -g -O2 -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+    
+    compile options: '-Inumpy/core/src/private -Inumpy/core/src -Inumpy/core -Inumpy/core/src/npymath -Inumpy/core/src/multiarray -Inumpy/core/src/umath -Inumpy/core/src/npysort -I/project/earth/packages/Python-2.7.5/include/python2.7 -c'
+    gcc: _configtest.c
+    gcc -pthread _configtest.o -o _configtest
+    success!
+    removing: _configtest.c _configtest.o _configtest
+    C compiler: gcc -pthread -fno-strict-aliasing -g -O2 -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+    
+    compile options: '-Inumpy/core/src/private -Inumpy/core/src -Inumpy/core -Inumpy/core/src/npymath -Inumpy/core/src/multiarray -Inumpy/core/src/umath -Inumpy/core/src/npysort -I/project/earth/packages/Python-2.7.5/include/python2.7 -c'
+    gcc: _configtest.c
+    _configtest.c:1: warning: conflicting types for built-in function 'exp'
+    gcc -pthread _configtest.o -o _configtest
+    _configtest.o: In function `main':
+    /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/build/numpy/_configtest.c:6: undefined reference to `exp'
+    collect2: ld returned 1 exit status
+    _configtest.o: In function `main':
+    /projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm_venv/build/numpy/_configtest.c:6: undefined reference to `exp'
+    collect2: ld returned 1 exit status
+    failure.
+    removing: _configtest.c _configtest.o
+    C compiler: gcc -pthread -fno-strict-aliasing -g -O2 -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+    
+    compile options: '-Inumpy/core/src/private -Inumpy/core/src -Inumpy/core -Inumpy/core/src/npymath -Inumpy/core/src/multiarray -Inumpy/core/src/umath -Inumpy/core/src/npysort -I/project/earth/packages/Python-2.7.5/include/python2.7 -c'
+    gcc: _configtest.c
+    _configtest.c:1: warning: conflicting types for built-in function 'exp'
+    gcc -pthread _configtest.o -lm -o _configtest
+    success!
+    removing: _configtest.c _configtest.o _configtest
+    building library "npysort" sources
+      adding 'build/src.linux-x86_64-2.7/numpy/core/src/private' to include_dirs.
+    None - nothing done with h_files = ['build/src.linux-x86_64-2.7/numpy/core/src/private/npy_partition.h', 'build/src.linux-x86_64-2.7/numpy/core/src/private/npy_binsearch.h']
+    building extension "numpy.core._dummy" sources
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/config.h' to sources.
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/_numpyconfig.h' to sources.
+    executing numpy/core/code_generators/generate_numpy_api.py
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/__multiarray_api.h' to sources.
+    numpy.core - nothing done with h_files = ['build/src.linux-x86_64-2.7/numpy/core/include/numpy/config.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/_numpyconfig.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/__multiarray_api.h']
+    building extension "numpy.core.multiarray" sources
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/config.h' to sources.
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/_numpyconfig.h' to sources.
+    executing numpy/core/code_generators/generate_numpy_api.py
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/__multiarray_api.h' to sources.
+      adding 'build/src.linux-x86_64-2.7/numpy/core/src/private' to include_dirs.
+    numpy.core - nothing done with h_files = ['build/src.linux-x86_64-2.7/numpy/core/src/private/templ_common.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/config.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/_numpyconfig.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/__multiarray_api.h']
+    building extension "numpy.core.umath" sources
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/config.h' to sources.
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/_numpyconfig.h' to sources.
+    executing numpy/core/code_generators/generate_ufunc_api.py
+      adding 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/__ufunc_api.h' to sources.
+      adding 'build/src.linux-x86_64-2.7/numpy/core/src/umath' to include_dirs.
+    numpy.core - nothing done with h_files = ['build/src.linux-x86_64-2.7/numpy/core/src/umath/funcs.inc', 'build/src.linux-x86_64-2.7/numpy/core/src/umath/simd.inc', 'build/src.linux-x86_64-2.7/numpy/core/src/umath/loops.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/config.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/_numpyconfig.h', 'build/src.linux-x86_64-2.7/numpy/core/include/numpy/__ufunc_api.h']
+    building extension "numpy.core.umath_tests" sources
+    building extension "numpy.core.test_rational" sources
+    building extension "numpy.core.struct_ufunc_test" sources
+    building extension "numpy.core.multiarray_tests" sources
+    building extension "numpy.core.operand_flag_tests" sources
+    building extension "numpy.fft.fftpack_lite" sources
+    building extension "numpy.linalg.lapack_lite" sources
+      adding 'numpy/linalg/lapack_litemodule.c' to sources.
+      adding 'numpy/linalg/lapack_lite/python_xerbla.c' to sources.
+    building extension "numpy.linalg._umath_linalg" sources
+      adding 'numpy/linalg/umath_linalg.c.src' to sources.
+      adding 'numpy/linalg/lapack_lite/python_xerbla.c' to sources.
+    building extension "numpy.random.mtrand" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext
+    customize Gnu95FCompiler
+    customize Gnu95FCompiler
+    customize Gnu95FCompiler using build_ext
+    building 'numpy.core.multiarray' extension
+    compiling C sources
+    C compiler: gcc -pthread -fno-strict-aliasing -g -O2 -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+    
+    compile options: '-DHAVE_NPY_CONFIG_H=1 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE=1 -D_LARGEFILE64_SOURCE=1 -DHAVE_CBLAS -DNO_ATLAS_INFO=-1 -I/usr/include -Ibuild/src.linux-x86_64-2.7/numpy/core/src/private -Inumpy/core/include -Ibuild/src.linux-x86_64-2.7/numpy/core/include/numpy -Inumpy/core/src/private -Inumpy/core/src -Inumpy/core -Inumpy/core/src/npymath -Inumpy/core/src/multiarray -Inumpy/core/src/umath -Inumpy/core/src/npysort -I/project/earth/packages/Python-2.7.5/include/python2.7 -Ibuild/src.linux-x86_64-2.7/numpy/core/src/private -Ibuild/src.linux-x86_64-2.7/numpy/core/src/private -Ibuild/src.linux-x86_64-2.7/numpy/core/src/private -c'
+    gcc: numpy/core/src/multiarray/compiled_base.c
+    gcc: numpy/core/src/multiarray/sequence.c
+    gcc: numpy/core/src/multiarray/descriptor.c
+    gcc: numpy/core/src/multiarray/getset.c
+    gcc: numpy/core/src/multiarray/arrayobject.c
+    gcc: numpy/core/src/multiarray/methods.c
+    gcc: numpy/core/src/multiarray/datetime_busdaycal.c
+    gcc: numpy/core/src/multiarray/vdot.c
+    gcc: numpy/core/src/multiarray/array_assign_array.c
+    gcc: numpy/core/src/multiarray/buffer.c
+    gcc: numpy/core/src/multiarray/refcount.c
+    gcc: numpy/core/src/multiarray/convert.c
+    gcc: numpy/core/src/multiarray/shape.c
+    gcc: numpy/core/src/multiarray/numpymemoryview.c
+    gcc: build/src.linux-x86_64-2.7/numpy/core/src/multiarray/lowlevel_strided_loops.c
+    gcc: numpy/core/src/multiarray/multiarraymodule.c
+    gcc: numpy/core/src/multiarray/item_selection.c
+    gcc: numpy/core/src/multiarray/usertypes.c
+    gcc: build/src.linux-x86_64-2.7/numpy/core/src/multiarray/arraytypes.c
+    numpy/core/src/multiarray/arraytypes.c.src: In function 'CFLOAT_fastclip':
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'max_val.imag' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'max_val.real' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'min_val.imag' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'min_val.real' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src: In function 'CDOUBLE_fastclip':
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'max_val.imag' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'max_val.real' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'min_val.imag' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'min_val.real' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src: In function 'CLONGDOUBLE_fastclip':
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'max_val.imag' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'max_val.real' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'min_val.imag' may be used uninitialized in this function
+    numpy/core/src/multiarray/arraytypes.c.src:3735: warning: 'min_val.real' may be used uninitialized in this function
+Operation cancelled by user
+Storing complete log in /usr3/graduate/bullocke/.pip/pip.log

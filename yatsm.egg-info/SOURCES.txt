@@ -32,6 +32,7 @@ yatsm/cli/line.py
 yatsm/cli/main.py
 yatsm/cli/map.py
 yatsm/cli/monitor.py
+yatsm/cli/monitor_map.py
 yatsm/cli/options.py
 yatsm/cli/pixel.py
 yatsm/cli/segment.py
