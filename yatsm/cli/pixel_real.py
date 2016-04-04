@@ -17,6 +17,7 @@ import numpy as np
 import palettable
 import patsy
 import yaml
+from matplotlib import rc
 
 from yatsm.algorithms import postprocess  # TODO: implement postprocessors
 from yatsm.cli import options
@@ -33,7 +34,7 @@ if hasattr(mpl, 'style'):
     plot_styles = mpl.style.available
 if hasattr(plt, 'xkcd'):
     plot_styles.append('xkcd')
-
+rc('font',**{'family':'sans-serif','sans-serif':['Arial']})
 logger = logging.getLogger('yatsm')
 
 
@@ -124,29 +125,27 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
     X = X[valid, :]
     dates = np.array([dt.datetime.fromordinal(d) for d in df['date'][valid]])
     #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/dates_5287_5512.npy', dates)
-    #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/x_5287_5512.npy', X)
-    #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/y_5287_5512.npy', Y)
 
     # Plot before fitting
-    with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
-        for _plot in plot:
-            if _plot == 'TS':
-                plot_TS(dates, Y[band, :])
-            elif _plot == 'DOY':
-                plot_DOY(dates, Y[band, :], mpl_cmap)
-            elif _plot == 'VAL':
-                plot_VAL(dates, Y[band, :], mpl_cmap)
-
-            if ylim:
-                plt.ylim(ylim)
-            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
-            plt.ylabel('Band {b}'.format(b=band + 1))
-
-            if embed and has_embed:
-                IPython_embed()
-
-            plt.tight_layout()
-            plt.show()
+#    with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
+#        for _plot in plot:
+#            if _plot == 'TS':
+#                plot_TS(dates, Y[band, :])
+#            if _plot == 'DOY':
+#                plot_DOY(dates, Y[band, :], mpl_cmap)
+#            elif _plot == 'VAL':
+#                plot_VAL(dates, Y[band, :], mpl_cmap)
+#
+#            if ylim:
+#                plt.ylim(ylim)
+#            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
+#            plt.ylabel('Band {b}'.format(b=band + 1))
+#
+#            if embed and has_embed:
+#                IPython_embed()
+#
+#            plt.tight_layout()
+#            plt.show()
 
     # Eliminate config parameters not algorithm and fit model
     yatsm = cfg['YATSM']['algorithm_cls'](lm=cfg['YATSM']['prediction_object'],
@@ -167,9 +166,9 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
 
             if ylim:
                 plt.ylim(ylim)
-	        #plt.xlim((2005,2010))
-            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
-            plt.ylabel('Band {b}'.format(b=band + 1))
+#            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
+            hfont = {'fontname':'Liberation Sans'}
+            plt.ylabel('Band {b}'.format(b=band + 1), fontsize=20, **hfont)
 
             plot_results(band, cfg['YATSM'], yatsm, plot_type=_plot)
 
@@ -177,15 +176,20 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
                 IPython_embed()
 
             plt.tight_layout()
-#	    import pdb; pdb.set_trace()
-	    plt.xlim((date(2005,1,1),date(2010,1,1)))
+            plt.savefig('/projectnb/landsat/users/bullocke/Vietnam/Conference/P124-R052/YATSM_Files/seasonality2.png')	
             plt.show()
 
 
 def plot_TS(dates, y):
     # Plot data
+    hfont = {'fontname':'Liberation Sans'}
+    fig = plt.figure()
+    fig.set_size_inches(11, 3)
+    plt.xlim([dt.datetime(2009, 1, 1, 0, 0),dt.datetime(2015, 1, 1, 0, 0)])
+    plt.ylim([2000,5000])
     plt.scatter(dates, y, c='k', marker='o', edgecolors='none', s=35)
-    plt.xlabel('Date')
+    plt.tick_params(labelsize=15)
+    plt.xlabel('Date', fontsize=20, **hfont)
 
 
 def plot_DOY(dates, y, mpl_cmap):
@@ -252,7 +256,8 @@ def plot_results(band, yatsm_config, yatsm_model, plot_type='TS'):
 
             label = 'Model {i} - {yr}'.format(i=i, yr=yr_mid)
 
-        plt.plot(mx_date, my, lw=2, label=label)
+        #plt.plot(mx_date, my, lw=2, label=label)
+        plt.plot(mx_date, my, lw=4)
         plt.legend()
 
 

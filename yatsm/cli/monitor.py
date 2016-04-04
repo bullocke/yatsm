@@ -59,7 +59,6 @@ def monitor(ctx, config, date, output,
         logger.error('Could not open new image for reading')
         raise
 
-
     dataset_config = parse_config_file(config)
 
     #Open new mage as array

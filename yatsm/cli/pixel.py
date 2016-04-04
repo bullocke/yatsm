@@ -32,7 +32,6 @@ rpy2.robjects.numpy2ri.activate()
 Rstats = importr('stats')
 
 avail_plots = ['TS', 'DOY', 'VAL']
-
 plot_styles = []
 if hasattr(mpl, 'style'):
     plot_styles = mpl.style.available
@@ -133,25 +132,25 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
     #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/y_5287_5512.npy', Y)
 
     # Plot before fitting
-    with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
-        for _plot in plot:
-            if _plot == 'TS':
-                plot_TS(dates, Y[band, :])
-            elif _plot == 'DOY':
-                plot_DOY(dates, Y[band, :], mpl_cmap)
-            elif _plot == 'VAL':
-                plot_VAL(dates, Y[band, :], mpl_cmap)
+   # with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
+   #     for _plot in plot:
+   #         if _plot == 'TS':
+   #             plot_TS(dates, Y[band, :])
+   #         elif _plot == 'DOY':
+   #             plot_DOY(dates, Y[band, :], mpl_cmap)
+   #         elif _plot == 'VAL':
+   #             plot_VAL(dates, Y[band, :], mpl_cmap)
 
-            if ylim:
-                plt.ylim(ylim)
-            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
-            plt.ylabel('Band {b}'.format(b=band + 1))
+  #          if ylim:
+  #              plt.ylim(ylim)
+  #          plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
+  #          plt.ylabel('Band {b}'.format(b=band + 1))
 
-            if embed and has_embed:
-                IPython_embed()
+ #           if embed and has_embed:
+ #               IPython_embed()
 
-            plt.tight_layout()
-            plt.show()
+#            plt.tight_layout()
+#            plt.show()
 
     # Eliminate config parameters not algorithm and fit model
     yatsm = cfg['YATSM']['algorithm_cls'](lm=cfg['YATSM']['prediction_object'],
@@ -177,14 +176,14 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
                 plt.ylim(ylim)
 	        #plt.xlim((2005,2010))
 #            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
-            ax1.set_ylabel('Landsat TM/ETM Band {b}'.format(b=band + 1))
+	    hfont = {'fontname': 'Liberation Sans'}
+            ax1.set_ylabel('Landsat TM/ETM Band {b}'.format(b=band + 1), fontsize=20, **hfont)
 
             plot_results(ax1, band, cfg['YATSM'], yatsm, plot_type=_plot)
 
             if embed and has_embed:
                 IPython_embed()
 
-            #plt.tight_layout()
 
             radx=[date(2007, 1, 29), date(2007,8, 8), date(2007,11,11), date(2007,12,16), date(2008, 3, 18), date(2009, 2, 3), date(2009, 12, 22)]
 	    radyDN=[.259, .213, .229, .319, .201, .175, .133]
@@ -214,13 +213,16 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
 	    plt.xlim((date(2005,1,1),date(2010,2,1)))
 	    lines, labels = ax1.get_legend_handles_labels()
 	    lines2, labels2 = ax2.get_legend_handles_labels()
-	    legend = ax2.legend(lines + lines2, labels + labels2, loc=9, prop={'size':14})
-	    legend.get_frame().set_facecolor('white')
-	    legend.get_frame().set_edgecolor('black')
-	    ax1.grid(b=True)
-	    ax2.grid(b=True)
-	    fig.set_size_inches(10, 4, forward=True)
-	    plt.savefig('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/combined_ts_DB3.png')
+	    #legend = ax2.legend(lines + lines2, labels + labels2, loc=9, prop={'size':14})
+	    #legend.get_frame().set_facecolor('white')
+	    #legend.get_frame().set_edgecolor('black')
+#	    ax1.grid(b=True)
+#	    ax2.grid(b=True)
+	    fig.set_size_inches(11, 3, forward=True)
+            plt.tight_layout()
+            ax1.tick_params(labelsize=12)
+            ax2.tick_params(labelsize=12)
+	    plt.savefig('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/combined_ts_adjusted_legend.png')
             plt.show()
 
 
@@ -228,7 +230,13 @@ def plot_TS(dates, y):
     # Plot data
     plt.scatter(dates, y, c='k', marker='o', edgecolors='black', s=35)
     plt.xlabel('Date')
-
+    hfont = {'fontname':'Liberation Sans'}
+    fig = plt.figure()
+    fig.set_size_inches(11, 3)
+    plt.ylim([2000,5000])
+    plt.scatter(dates, y, c='k', marker='o', edgecolors='none', s=35)
+    plt.tick_params(labelsize=20)
+    plt.xlabel('Date', fontsize=20, **hfont)
 
 def plot_DOY(dates, y, mpl_cmap):
     doy = np.array([d.timetuple().tm_yday for d in dates])
@@ -295,7 +303,7 @@ def plot_results(ax1, band, yatsm_config, yatsm_model, plot_type='TS'):
 
             label = 'Model {i} - {yr}'.format(i=i, yr=yr_mid)
 
-        ax1.plot(mx_date, my, lw=2, label=label, c='black')
+        ax1.plot(mx_date, my, lw=4, label=label, c='black')
         #plt.legend()
 
 

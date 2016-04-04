@@ -43,6 +43,7 @@ def convert_config(cfg):
 
    # import pdb; pdb.set_trace()
     # Unpickle main predictor
+    #import pdb; pdb.set_trace()
     cfg['YATSM']['prediction_object'] = _unpickle_predictor(
         cfg[cfg['YATSM']['prediction']]['pickle'])
 
