@@ -441,8 +441,8 @@ class CCDCesque(YATSM):
             # Record break date
             self.record[self.n_record]['break'] = self.dates[self.here + 1]
 	    #import pdb; pdb.set_trace()
-	    if ((self.here+5) - self.dates.shape[0]) <= 0:
-                self.record[self.n_record]['detect'] = self.dates[self.here + 5]
+	    if ((self.here+consecutive) - self.dates.shape[0]) <= 0:
+                self.record[self.n_record]['detect'] = self.dates[self.here + consecutive]
 	    else:
                 self.record[self.n_record]['detect'] = self.dates[self.here + 1]
             # Record magnitude of difference for tested indices
@@ -458,9 +458,6 @@ class CCDCesque(YATSM):
             # Reset _X and _Y for re-training
             self._X = self.X
             self._Y = self.Y
-#            if ((self.here+10) - self.dates.shape[0]) <= 10:
-#                 self.start = self.here + 10
-#            else:
             self.start = self.here + 1
 
             self.trained_date = 0

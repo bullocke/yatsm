@@ -145,19 +145,23 @@ def line(ctx, config, job_number, total_jobs,
             _Y = Y.take(col, axis=2)
             # Mask
             idx_mask = cfg['dataset']['mask_band'] - 1
+            view_band = cfg['dataset']['view_angle_band'] - 1
+	    view_thresh = cfg['dataset']['view_angle_threshold'] 
+
             valid = cyprep.get_valid_mask(
                 _Y,
                 cfg['dataset']['min_values'],
                 cfg['dataset']['max_values']).astype(bool)
+
+            #For MODIS, mask out high view angles. 
 	    if vza:
-                valid = np.logical_and(_Y[10, :] <= 3500, _Y[idx_mask, :] >= 1,
+                valid = np.logical_and(_Y[view_band, :] <= view_thresh, _Y[idx_mask, :] >= 1,
                         np.all(_Y >= -1000, axis=0))
 	    else:
                 valid *= np.in1d(_Y.take(idx_mask, axis=0),
                                  cfg['dataset']['mask_values'],
                                  invert=True).astype(np.bool)
-	   # if col > 2000:
-	   #     import pdb; pdb.set_trace()
+
             _Y = np.delete(_Y, idx_mask, axis=0)[:, valid]
             _X = X[valid, :]
             _dates = dates[valid]
@@ -197,7 +201,6 @@ def line(ctx, config, job_number, total_jobs,
             	output.extend(yatsm.record)
 
         logger.debug('    Saving YATSM output to %s' % out)
-        #import pdb; pdb.set_trace()
         np.savez(out,
                  version=__version__,
                  record=np.array(output),
