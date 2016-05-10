@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 """ Image compositing script
-Re-written and simplified version of script by Chris Holden 
+Modified version of script by Chris Holden 
 https://github.com/ceholden/misc/tree/master/composites
 TODO:
     - make some system where vegetation indices can be inserted into expression

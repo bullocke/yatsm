@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """ Preprocess MODIS MOD09GA/MYD09GA and MOD09GQ/MYD09GQ
-Written by Chris Holden: 
+Modified version of script by Chris Holden:
 https://github.com/ceholden/NRTwarn/blob/master/nrtwarn/prep/prep_MODIS.py
 
 Usage:
