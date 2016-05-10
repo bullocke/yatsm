@@ -5,10 +5,10 @@ import logging
 import os
 
 
-import click
 import numpy as np
 from osgeo import gdal
 
+from yatsm.config_parser import parse_config_file
 from yatsm.cli import options
 from yatsm.utils import find_results, iter_records, write_output
 from yatsm.cli.map import find_result_attributes
@@ -18,49 +18,21 @@ gdal.UseExceptions()
 logger = logging.getLogger('yatsm')
 
 # Filters for results
-_result_record = 'yatsm_*'
 
 WARN_ON_EMPTY = False
 
 
-@click.command(
-    short_help='Map change found by YATSM algorithm over time period')
-@click.argument('map_type', metavar='<map_type>',
-                type=click.Choice(['first', 'last', 'num', 'class']))
-@options.arg_date(var='start_date', metavar='<start_date>')
-@options.arg_date(var='end_date', metavar='<end_date>')
-@options.arg_output
-@options.opt_rootdir
-@options.opt_resultdir
-@options.opt_exampleimg
-@options.opt_date_format
-@options.opt_nodata
-@options.opt_format
-@click.option('--monitor_date', 'monitor_date', metavar='<monitor_date>',
-              help='Date to begin monitoring')
-@click.option('--band', '-b', multiple=True, metavar='<band>', type=int,
-              help='Bands to export for coefficient/prediction maps')
-@click.option('--out_date', 'out_date_frmt', metavar='<format>',
-              default='%Y%j', show_default=True, help='Output date format')
-@click.option('--warn-on-empty', is_flag=True,
-              help='Warn user when reading in empty results files')
-@click.option('--magnitude', is_flag=True,
-              help='Add magnitude of change as extra image '
-                   '(pattern is [name]_mag[ext])')
-@click.option('--detect', is_flag=True,
-              help='Create map of dates change is detected, not date it happened ')
-@click.pass_context
-def monitor_map(ctx, map_type, start_date, end_date, monitor_date, output,
-              root, result, image, date_frmt, ndv, gdal_frmt, out_date_frmt, band,
-              warn_on_empty, magnitude, detect):
+def monitor_map(config, start_date, end_date, monitor_date, output,
+               date_frmt, detect, image):
     """
     Examples: TODO
     """
+    gdal_frmt = 'GTiff' #TODO
     gdal_frmt = str(gdal_frmt)  # GDAL GetDriverByName doesn't work on Unicode
-
+    config = parse_config_file(config)
     frmt = '%Y%j'
-    start_txt, end_txt = start_date.strftime(frmt), end_date.strftime(frmt)
-    start_date, end_date = start_date.toordinal(), end_date.toordinal()
+    ndv = -9999 #TODO 
+    #start_date, end_date = start_date.toordinal(), end_date.toordinal()
 
     try:
         image_ds = gdal.Open(image, gdal.GA_ReadOnly)
@@ -69,19 +41,87 @@ def monitor_map(ctx, map_type, start_date, end_date, monitor_date, output,
         raise
 
     changemap = get_NRT_class(
-            start_date, end_date, monitor_date, band, detect, result, image_ds,
-            ndv=ndv, pattern=_result_record
+            config, start_date, end_date, monitor_date, detect,image_ds,
+            ndv=ndv
         )
     band_names=['class']
     write_output(changemap, output, image_ds, gdal_frmt, ndv,
                      band_names=band_names)
-
+    if shapefile:
+	write_shapefile(changemap, output,image_ds, gdal_frmt, 
+		     ndv, band_names=band_names)
     image_ds = None
 
 # UTILITIES
 
-def get_NRT_class(start, end, monitor, ndvi, detect, result_location, image_ds,
-            ndv=-9999, pattern=_result_record):
+def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
+    """ Write raster to output shapefile """
+    from osgeo import gdal, gdal_array
+
+    logger.debug('Writing output to disk')
+
+    driver = gdal.GetDriverByName('MEM')
+
+    if len(raster.shape) > 2:
+        nband = raster.shape[2]
+    else:
+        nband = 1
+
+    ds = driver.Create(
+        output,
+        image_ds.RasterXSize, image_ds.RasterYSize, nband,
+        gdal_array.NumericTypeCodeToGDALTypeCode(raster.dtype.type)
+    )
+
+    if band_names is not None:
+        if len(band_names) != nband:
+            logger.error('Did not get enough names for all bands')
+            sys.exit(1)
+
+    if raster.ndim > 2:
+        for b in range(nband):
+            logger.debug('    writing band {b}'.format(b=b + 1))
+            ds.GetRasterBand(b + 1).WriteArray(raster[:, :, b])
+            ds.GetRasterBand(b + 1).SetNoDataValue(ndv)
+
+            if band_names is not None:
+                ds.GetRasterBand(b + 1).SetDescription(band_names[b])
+                ds.GetRasterBand(b + 1).SetMetadata({
+                    'band_{i}'.format(i=b + 1): band_names[b]
+                })
+    else:
+        logger.debug('    writing band')
+        ds.GetRasterBand(1).WriteArray(raster)
+        ds.GetRasterBand(1).SetNoDataValue(ndv)
+
+        if band_names is not None:
+            ds.GetRasterBand(1).SetDescription(band_names[0])
+            ds.GetRasterBand(1).SetMetadata({'band_1': band_names[0]})
+
+    ds.SetProjection(image_ds.GetProjection())
+    ds.SetGeoTransform(image_ds.GetGeoTransform())
+
+    srcband = ds.GetRasterBand(1)
+
+#  create output datasource
+    outSpatialRef = osr.SpatialReference()
+    outSpatialRef.ImportFromProj4('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs')
+
+    dst_layername = output
+    drv = ogr.GetDriverByName("ESRI Shapefile")
+    dst_ds = drv.CreateDataSource( dst_layername + ".shp" )
+    dst_layer = dst_ds.CreateLayer(dst_layername, srs = outSpatialRef )
+    newField = ogr.FieldDefn('Date', ogr.OFTInteger)
+    dst_layer.CreateField(newField)
+
+    gdal.Polygonize( srcband, srcband, dst_layer, 0, [], callback=None )	
+
+    ds = None
+    dst_layer = None 
+
+
+def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
+            ndv=-9999):
     """ Output a raster with forest/non forest classes for time period specied. 
 
     Args:
@@ -101,8 +141,13 @@ def get_NRT_class(start, end, monitor, ndvi, detect, result_location, image_ds,
 		date of forest to nonforest
     """
 
-    #TDODS: Make band not hard coded to 1
-
+    rmse_thresh = cfg['NRT']['rmse_threshold']
+    ndvi_thresh = cfg['NRT']['ndvi_threshold']
+    slope_thresh = cfg['NRT']['slope_threshold']
+    ndvi = cfg['CCDCesque']['test_indices']
+    ndvi = [b - 1 for b in ndvi]
+    pattern = 'yatsm_*' #TODO 
+    result_location = cfg['dataset']['output']
     # Find results
     records = find_results(result_location, pattern)
     prefix=''
@@ -113,7 +158,6 @@ def get_NRT_class(start, end, monitor, ndvi, detect, result_location, image_ds,
     n_bands = len(i_bands)
     n_coefs = len(i_coefs)
     n_rmse = n_bands 
-    ndvi = ndvi[0] - 1
 
     raster = np.zeros((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
                      dtype=np.int32) * int(ndv)
@@ -130,14 +174,14 @@ def get_NRT_class(start, end, monitor, ndvi, detect, result_location, image_ds,
 
             indice = np.where((rec['start'] <= end))[0]
             pre_mon_indice = np.where((rec['end'] <= end))[0]
-	    forest = np.where((rec['coef'][indice][:,0,ndvi]>8000))[0]
+	    forest = np.where((rec['coef'][indice][:,0,ndvi]>ndvi_thresh))[0]
 
 	    #Set forested pixels to two
             raster[rec['py'][indice][forest],rec['px'][indice][forest]] = 2
 
             #Overwrite with date of deforestation
-            deforestation = np.where((rec['break'] >= end) & (rec['coef'][:,0,ndvi]>8000) & (rec['start'] <= end) \
-                                & (rec['rmse'][:,ndvi]<600) & (rec['coef'][:,1,ndvi]<1))[0]
+            deforestation = np.where((rec['break'] >= end) & (rec['coef'][:,0,ndvi]>ndvi_thresh) & (rec['start'] <= end) \
+                                & (rec['rmse'][:,ndvi]<rmse_thresh) & (rec['coef'][:,1,ndvi]<slope_thresh))[0]
 	    if np.shape(deforestation)[0] > 0:
                 if detect:
                     dates = np.array([int(dt.fromordinal(_d).strftime('%Y%j'))
@@ -151,8 +195,8 @@ def get_NRT_class(start, end, monitor, ndvi, detect, result_location, image_ds,
 			    raster[rec['py'][deforestation][i],rec['px'][deforestation][i]]=dates[i]                   
 
             #Overwrite if it contained nonforest before monitoring period? 
-	    nonforest = np.where((rec['coef'][indice][:,0,ndvi]<8000) \
-                                & (rec['rmse'][indice][:,ndvi]>300))[0]
+	    nonforest = np.where((rec['coef'][indice][:,0,ndvi]<ndvi_thresh) \
+                                & (rec['rmse'][indice][:,ndvi]>rmse_thresh))[0]
             raster[rec['py'][indice][nonforest],rec['px'][indice][nonforest]] = 1 
 	    px_all=[]
        

@@ -228,7 +228,7 @@ def preprocess(downloaddirectory, stackdirectory, pattern):
     blockysize = 1
     pairs = find_MODIS_pairs(downloaddirectory, pattern)
     output_names = get_output_names(pairs,stackdirectory)   
-
+    failed = 0
     for i, (p, o) in enumerate(zip(pairs, output_names)):
         s = os.path.basename(p[0]).split('.')
         product = s[0][0:3]
