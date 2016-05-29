@@ -1,10 +1,9 @@
 """ Module for creating probability of change maps based on previous time series results
 """
-import datetime as dt
+from datetime import datetime
 import logging
 import os
 import re
-from datetime import datetime#
 import click
 import csv
 import numpy as np
@@ -12,13 +11,14 @@ from osgeo import gdal
 import patsy
 from ..algorithms.ccdc_monitor import *
 from yatsm.cli import options
-from monitor_map import *
+from monitor_map import make_map
 from yatsm.config_parser import parse_config_file
 from yatsm.utils import get_output_name, find_results, iter_records, write_output
 gdal.AllRegister()
 gdal.UseExceptions()
 
 logger = logging.getLogger('yatsm')
+logger_algo = logging.getLogger('yatsm_algo')
 
 pattern = '*npz'
 _result_record = 'yatsm_r*'
@@ -40,6 +40,7 @@ _result_record = 'yatsm_r*'
 
 
 def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, output_rast, save):
+    logger_algo.setLevel(logging.DEBUG)
     #Parse config and open input csv
     cfg = parse_config_file(config)
     done_csv = cfg['dataset']['input_file']
@@ -62,11 +63,6 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 
     first = int(monitor_array[0][0])
 
-    #Check if monitor dates are in the input one, if so stop because they have already been processed. 
-    if first <= last:
-        logger.error('First monitor image has already been processed')
-        raise click.Abort()
-
     #Loop over each date in monitor list. Check again if the date is in input list
     num_monitor=len(monitor_array)
     for i in range(num_monitor):
@@ -74,8 +70,12 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 	date = int(cur_image[0])
 	image_path = cur_image[1]
 	if date <= last:
-            logger.error('Previous results processed past image date. Skipping.')
-            continue
+            if i == (num_monitor - 1):
+	        detect=False #TODO
+	        make_map(config, datetime.strptime(str(veryfirst), '%Y%j'), datetime.strptime(str(last), '%Y%j'), datetime.strptime(str(2015001), '%Y%j'), output, '%Y%j',image_path, detect)  #TODO dates
+	    else:
+                logger.error('Previous results processed past image date. Skipping.')
+                continue
 
         #Read the image as an array. 
         try:
@@ -87,27 +87,26 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 
         #Do monitor
 	try:
-	    output_rast = ccdc_monitor(cfg, date, image_ds, save)
+            logger.info('Doing image %s' % image_path)
+   #         output_rast = ccdc_monitor(cfg, date, image_ds, save)
         except:
             logger.error('Could not process date %d' % date)
             raise click.Abort()
 
 
-        logger.debug('Doing image %d' % i)
 
 	#update image list
 	out_log = [str(date),'Com',image_path]
 	done_array.append(out_log)
-
-	with open(done_csv, 'wb') as f:
-	    writer = csv.writer(f)
-	    writer.writerows(done_array)
+#TODO Turn back
+#	with open(done_csv, 'wb') as f:
+#	    writer = csv.writer(f)
+#	    writer.writerows(done_array)
 
 
         if i == (num_monitor - 1):
 	    detect=False #TODO
-	    monitor_map(config, veryfirst, last, first, '/projectnb/landsat/users/bullocke/yatsm_newest/yatsm_NRT/yatsm/scripts/test.tif', '%Y%j',detect, image_path) 
-	    #import pdb; pdb.set_trace()
+	    make_map(config, datetime.strptime(str(veryfirst), '%Y%j'), datetime.strptime(str(last), '%Y%j'), datetime.strptime(str(2015001), '%Y%j'), output, '%Y%j',image_path, detect)  #TODO dates
             #write_mon_output(output_rast, output, image_ds,
             #                  gdal_frmt, ndv)
         else:
