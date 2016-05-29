@@ -19,6 +19,7 @@ gdal.AllRegister()
 gdal.UseExceptions()
 
 logger = logging.getLogger('yatsm')
+logger_algo = logging.getLogger('yatsm_algo')
 
 pattern = '*npz'
 _result_record = 'yatsm_r*'
@@ -31,7 +32,7 @@ def ccdc_monitor(cfg, date, image_ds, save):
 	TODO
 
     """
-#    import pdb; pdb.set_trace()
+    logger_algo.setLevel(logging.DEBUG)
     #Open new mage as array
     image_ar = image_ds.ReadAsArray()
     band_names = 'Probability'
@@ -64,7 +65,7 @@ def get_mon_prob(lineprob,linescores, lineconsec, image_ar, py, px, date, linebr
     _px=px[0]
     #loop over pixels
     for i in range(np.shape(linescores)[1]):
-	if lineprob[0,i,0] >= 100:
+	if lineconsec[0,i,0] >= 5: #TODO not hard coded
 	    continue
 	#First do the cloud test:
 	if linescores[0,i,green] > cloudthreshold:
@@ -73,13 +74,11 @@ def get_mon_prob(lineprob,linescores, lineconsec, image_ar, py, px, date, linebr
 	    continue 
 	#Now do the shadow test:
 	if linescores[0,i,swir] < shadowthreshold:
-	    shadowprob[0,i]=0
+	    continue
 	#First check if it passes NDVI threshold
 	if linescores[0,i,test_ind] < threshold:
-	    lineprob[0,i,0] = lineprob[0,i,0] + (((cloudprob[0,i] * shadowprob[0,i]) * (lineconsec[0,i,0])) * 10)  
-	#One means last one was change
 	    lineconsec[0,i,0] += 1
-	    if lineprob[0,i,0] >= 100:
+	    if lineconsec[0,i,0] >= 3: #record date for low prob to confirmed
 	        linebreak[0,i,0] = date
 	#But if it's not change, and last one was...set it to -1 to not start over. 
     return lineprob[0,:,0], lineconsec[0,:,0], linebreak[0,:,0]
@@ -257,8 +256,8 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
 
     Returns:
         np.ndarray: 2D numpy array containing the change probability map for the
-            image specified """
-
+            image specified
+    """
 
     #Define parameters. This should be from the parameter file. 
     threshold = cfg['CCDCesque']['threshold']
@@ -279,12 +278,13 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
         records, bands, None, cfg, prefix=prefix)
     n_bands = len(i_bands)
     n_i_bands = len(i_bands)
-
-    raster = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands), dtype=np.float16) * int(ndv)
-    probout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1), dtype=np.float32) * int(ndv)
-    breakout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1), dtype=np.float32) * int(ndv)
-    consecout = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1), dtype=np.float32) * int(ndv)
-    linescores_rast = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, n_bands), dtype=np.float16) * int(ndv)
+    im_Y = image_ds.RasterYSize
+    im_X = image_ds.RasterXSize
+    raster = np.ones((im_Y, im_X, n_bands), dtype=np.float16) * int(ndv)
+    probout = np.ones((im_Y, im_X, 1), dtype=np.float32) * int(ndv)
+    breakout = np.ones((im_Y, im_X, 1), dtype=np.float32) * int(ndv)
+    consecout = np.ones((im_Y, im_X, 1), dtype=np.float32) * int(ndv)
+    linescores_rast = np.ones((im_Y, im_X, n_bands), dtype=np.float16) * int(ndv)
 
     # Create X matrix from date -- ignoring categorical variables
 
@@ -303,14 +303,16 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
     logger.debug('Allocating memory')
     logger.debug('Processing results')
 
-
+    iter = 1
     for z, rec in iter_records(records, warn_on_empty=True):
+       logger.info('Working on record %s' % iter)
+       iter+=1	
 	#looping over indices
-       linescores = np.zeros((1, image_ds.RasterXSize, n_bands), dtype=np.float32) * int(ndv)
-       rmse = np.ones((1, image_ds.RasterXSize, n_bands), dtype=np.float32) * int(ndv)
-       lineconsec = np.zeros((1, image_ds.RasterXSize, 1), dtype=np.float32) * int(ndv)
-       linebreak = np.zeros((1, image_ds.RasterXSize, 1), dtype=np.float32) * int(ndv)
-       lineprob = np.zeros((1, image_ds.RasterXSize, 1), dtype=np.float32) * int(ndv)
+       linescores = np.zeros((1, im_X, n_bands), dtype=np.float32) * int(ndv)
+       rmse = np.ones((1, im_X, n_bands), dtype=np.float32) * int(ndv)
+       lineconsec = np.zeros((1, im_X, 1), dtype=np.float32) * int(ndv)
+       linebreak = np.zeros((1, im_X, 1), dtype=np.float32) * int(ndv)
+       lineprob = np.zeros((1, im_X, 1), dtype=np.float32) * int(ndv)
 
        for index in find_mon_indices(rec, date):
            if index.shape[0] == 0:
@@ -361,19 +363,20 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
 	       breakout[np.unique(rec['py']),:,0] = out3
 	       out1 = out2 = out3 = None
 
-#	       import pdb; pdb.set_trace()
+       #Save #TODO get rid of all this - this is what it is slowing us down.
        #If the results should be saved, do so. 
        if save:
            out = {}
-           for k, v in z.iteritems():
+           for k, v in z.iteritems(): # Get meta data items from z
                out[k] = v
-           for q in range(np.shape(probout)[1]):
+           for q in range(np.shape(probout)[1]): #TODO This whoie part needs to go 
+	       indice=np.where(out['record']['px']==q)
                if np.shape(indice)[1] == 0:
 	           continue
 	       out['record']['consec'][indice] = consecout[np.unique(rec['py']),q,:] 
 	       out['record']['break'][indice] = breakout[np.unique(rec['py']),q,:] 
 	       out['record']['probability'][indice] = probout[np.unique(rec['py']),q,:] 
-           filename = get_output_name(cfg['dataset'], _py[0])       
-           np.savez(filename, **out)
+           #filename = get_output_name(cfg['dataset'], _py[0])       
+           #np.savez(filename, **out)
     return raster, probout, linescores_rast
 
