@@ -1,4 +1,3 @@
-import csv
 import click
 import numpy as np
 import csv
@@ -8,20 +7,24 @@ from ftplib import FTP
 import os
 import time
 from shutil import copyfile
+from nrt_utils import *
 from yatsm.cli import options 
 from yatsm.config_parser import parse_config_file
-from image_composites import image_composite
-from prep_modis import *
+#from image_composites import image_composite
+#from prep_modis import *
 
 @click.command(short_help='Download and pre-process MODIS data in NRT')
 @options.arg_config_file
 @click.pass_context
 
 def process_modis(ctx, config):
-    """Master function (TODO: Add inputs)
-    Inputs: TODO
-	config: Configuration file for YATSM
-    Outputs: TODO
+    """Master function
+    Inputs:
+	config: Configuration file for YATSM with NRT parameters incldued
+    Outputs:
+	Image composites: All available MODIS surface reflectance products for year specified. 
+		          Composites based on minimum view zenith angle. 
+			  Bands: NDVI, Blue, SWIR, Cloud mask, VZA
     """
     wkdir=os.getcwd()
     #Change to directory to work in 
@@ -31,6 +34,9 @@ def process_modis(ctx, config):
     outputdir = cfg['NRT']['output_directory'] #Where images get composited
     tile = cfg['NRT']['tile'] #The modis tile
     monitor_log_dir = cfg['NRT']['monitor_log_dir']
+    vza_band = cfg['NRT']['view_angle_band']
+    mask_band = cfg['dataset']['mask_band']
+    mask_val = 0
     os.chdir(downloaddirectory)
 
     #Set up lists to store file names for each step in the process
@@ -38,7 +44,6 @@ def process_modis(ctx, config):
     comp_list = []
     download_list=[]
     date_list=[]
-
     #Download the images
     download_list = get_modis("MOD09GA", tile, 2016, download_list) 
     download_list = get_modis("MYD09GA", tile, 2016, download_list)
@@ -49,12 +54,11 @@ def process_modis(ctx, config):
     pre_list.append(pre)
     pre = preprocess(downloaddirectory, stackdirectory, "MYD*09*hdf")
     pre_list.append(pre)
-
     #Find pairs of images to composite, or find which days have only 1 image
     tocomp_list, myd_list, mod_list = find_comp_pairs(stackdirectory, outputdir, tile)
     #Composite the images based on view angle
     for images in tocomp_list:
-	d, comp = composite(images, outputdir, tile)
+	d, comp = composite(images, outputdir, tile, vza_band, mask_band, mask_val)
 	comp_list.append(comp)
 	date_list.append(d)
 
@@ -142,14 +146,12 @@ def find_comp_pairs(location, outputdir, tile):
         if i_mod.sum() == 0 and i_myd.sum() == 1:
             myd.append(files[i[i_myd]])
 
-
+    
     return pairs, myd, mod
 
 
 
-def composite(images, outputdir, tile):
-    vza_band = 7 #TODO make this an option
-    mask_band = 6
+def composite(images, outputdir, tile, vza_band, mask_band, mask_val):
     s = os.path.basename(images[0]).split('_')
     date = s[1][1:]
     output = '%s/Composite_%s_%s.gtif'  % (outputdir, tile, date) 
@@ -157,7 +159,6 @@ def composite(images, outputdir, tile):
     expr=False
     oformat='GTiff'
     blue=vza_band
-    mask_val=0
     print 'Compositing %s' % output
     image_composite(images, algo, output, oformat, vza_band, mask_band, mask_val)
     return date, output
@@ -166,7 +167,7 @@ def copy_image(image, outputdir, tile):
     t = os.path.basename(image).split('/')[0]
     s = os.path.basename(t).split('_')
     date = s[1][1:]
-    output = '%s/Composite_%s_%s.tif'  % (outputdir, tile, date) 
+    output = '%s/Composite_%s_%s.gtif'  % (outputdir, tile, date) 
     print 'Copying %s' % output
     copyfile(image,output)
     return date, output
@@ -204,20 +205,15 @@ def get_modis(product, sub, start_year, download_list):
      """
     # Connect and go to the product folder
     ftp = ftp_connect("ladsweb.nascom.nasa.gov", "anonymous", 'bullocke@bu.edu', "/allData/6/" + product)
-    #import pdb; pdb.set_trace()
-    #password could be @anonymous
     # Iterate over folder names, download all the files
     ftp.cwd(str(start_year))
     print ftp.pwd()
     day_list = ftp.nlst()  # Get day folder list
     for d in day_list:
-        if int(d) > 30: #remove this TODO
-            ftp.cwd(str(d))
-            downloaded = download_files(ftp, sub, download_list)
-	    download_list.append(downloaded)
-            ftp.cwd('..')
-	else:
-	    continue 
+        ftp.cwd(str(d))
+        downloaded = download_files(ftp, sub, download_list)
+	download_list.append(downloaded)
+        ftp.cwd('..')
     ftp.pwd()
     ftp.cwd('..')
 
@@ -233,7 +229,7 @@ def preprocess(downloaddirectory, stackdirectory, pattern):
         s = os.path.basename(p[0]).split('.')
         product = s[0][0:3]
         date = s[1]
-	fullpath = '%s%s_%s_stack.gtif' % (stackdirectory, product, date)
+	fullpath = '%s/%s_%s_stack.gtif' % (stackdirectory, product, date)
         if os.path.isfile(fullpath):
 	    continue
 	else:
@@ -244,13 +240,10 @@ def preprocess(downloaddirectory, stackdirectory, pattern):
                              ndv=-9999, compression='None',
                              tiled=False,
                              blockxsize=None, blockysize=blockysize)
-            except RuntimeError:
-                if skip_error:
-                    logger.error('Could not preprocess pair: {p1} {p2}'.format(
+	    except:
+                logger.error('Could not preprocess pair: {p1} {p2}'.format(
                         p1=p[0], p2=p[1]))
-                    failed += 1
-                else:
-                    raise
+                failed += 1
 
     if failed != 0:
         logger.error('Could not process {n} pairs'.format(n=failed))
@@ -268,17 +261,6 @@ def ftp_connect(host, username, password, directory):
     ftp.cwd(directory)
 
     return ftp
-
-##Possible functions below::
-def get_image_dates(config):
-    """Retrieve dates of images to be processed
-    Inputs: TODO
-
-    Outputs: TODO
-    """
-
-    # Parse config
-    cfg = parse_config_file(config)
 
 
 def read_log():

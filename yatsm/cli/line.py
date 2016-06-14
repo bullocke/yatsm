@@ -145,8 +145,8 @@ def line(ctx, config, job_number, total_jobs,
             _Y = Y.take(col, axis=2)
             # Mask
             idx_mask = cfg['dataset']['mask_band'] - 1
-            view_band = cfg['dataset']['view_angle_band'] - 1
-	    view_thresh = cfg['dataset']['view_angle_threshold'] 
+            view_band = cfg['NRT']['view_angle_band'] - 1
+	    view_thresh = cfg['NRT']['view_angle_threshold'] * 100 
 
             valid = cyprep.get_valid_mask(
                 _Y,

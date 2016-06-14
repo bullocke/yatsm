@@ -6,7 +6,7 @@ import os
 
 
 import numpy as np
-from osgeo import gdal
+from osgeo import gdal, osr, ogr
 import click
 from yatsm.config_parser import parse_config_file
 from yatsm.cli import options
@@ -52,7 +52,7 @@ def make_map(config, start_date, end_date, monitor_date, output,
     gdal_frmt = str(gdal_frmt)  # GDAL GetDriverByName doesn't work on Unicode
     config = parse_config_file(config)
     frmt = '%Y%j' #TODO 
-    ndv = -9999 #TODO 
+    ndv = 0 #TODO 
     start_date = start_date.toordinal()
     end_date = end_date.toordinal()
     monitor_date = monitor_date.toordinal()
@@ -78,6 +78,8 @@ def make_map(config, start_date, end_date, monitor_date, output,
     if shapefile: #TODO
         write_shapefile(changemap, output,image_ds, gdal_frmt, 
 	    	         ndv, band_names=band_names)
+        #write_output(changemap, '/projectnb/landsat/datasets/MODIS/h12v09/monitor/2016.tif', image_ds, gdal_frmt, ndv,
+         #            band_names=band_names)
     else:
         write_output(changemap, output, image_ds, gdal_frmt, ndv,
                      band_names=band_names)
@@ -100,8 +102,7 @@ def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
         gdal_array.NumericTypeCodeToGDALTypeCode(changemap.dtype.type) #TODO issue
     )
 
-
-    ds.GetRasterBand(1).WriteArray(raster)
+    ds.GetRasterBand(1).WriteArray(changemap)
     ds.GetRasterBand(1).SetNoDataValue(ndv)
 
     ds.SetProjection(image_ds.GetProjection())
@@ -116,7 +117,7 @@ def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
 
     dst_layername = output
     drv = ogr.GetDriverByName("ESRI Shapefile")
-    dst_ds = drv.CreateDataSource( dst_layername + ".shp" )
+    dst_ds = drv.CreateDataSource( dst_layername )
     dst_layer = dst_ds.CreateLayer(dst_layername, srs = dst_srs )
     newField = ogr.FieldDefn('Date', ogr.OFTInteger)
     dst_layer.CreateField(newField)
@@ -167,7 +168,7 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
 
     raster = np.zeros((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
                      dtype=np.int32) * int(ndv)
-    stable = True #TODO 
+    stable = False #TODO 
     if stable: #TODO 
         raster[:,:]=1
     changemap = True #TODO: Prob or change? 
@@ -224,4 +225,4 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
                 raster[rec['py'][indice][nonforest],rec['px'][indice][nonforest]] = 1 
 	    else: 
                 raster[rec['py'][indice][nonforest],rec['px'][indice][nonforest]] = 0 
-    return raster
+    return raster[:,:,0]

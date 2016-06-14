@@ -7,11 +7,11 @@ import re
 import click
 import csv
 import numpy as np
-from osgeo import gdal
+from osgeo import gdal, gdal_array
 import patsy
 from ..algorithms.ccdc_monitor import *
 from yatsm.cli import options
-from monitor_map import make_map
+from monitor_map import make_map, write_shapefile
 from yatsm.config_parser import parse_config_file
 from yatsm.utils import get_output_name, find_results, iter_records, write_output
 gdal.AllRegister()
@@ -40,6 +40,11 @@ _result_record = 'yatsm_r*'
 
 
 def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, output_rast, save):
+    """Command line interface to handle monitoring of new imagery. This program will not
+     pre-process the data, which is done in yatsm.process_modis. This program will calculate
+     the change probabilities in time-sequential order for all images in input monitoring log.
+     Currently, the output is written to shapefiles for tileing on Mapbox. """
+
     logger_algo.setLevel(logging.DEBUG)
     #Parse config and open input csv
     cfg = parse_config_file(config)
@@ -60,7 +65,6 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
     if len(monitor_array) == 0:
         logger.error('Not new images to monitor')
         raise click.Abort()
-
     first = int(monitor_array[0][0])
 
     #Loop over each date in monitor list. Check again if the date is in input list
@@ -70,12 +74,8 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 	date = int(cur_image[0])
 	image_path = cur_image[1]
 	if date <= last:
-            if i == (num_monitor - 1):
-	        detect=False #TODO
-	        make_map(config, datetime.strptime(str(veryfirst), '%Y%j'), datetime.strptime(str(last), '%Y%j'), datetime.strptime(str(2015001), '%Y%j'), output, '%Y%j',image_path, detect)  #TODO dates
-	    else:
-                logger.error('Previous results processed past image date. Skipping.')
-                continue
+            logger.error('Previous results processed past image date. Skipping.')
+            continue
 
         #Read the image as an array. 
         try:
@@ -86,41 +86,67 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 
 
         #Do monitor
-	try:
-            logger.info('Doing image %s' % image_path)
-   #         output_rast = ccdc_monitor(cfg, date, image_ds, save)
-        except:
-            logger.error('Could not process date %d' % date)
-            raise click.Abort()
+        logger.info('Doing image %s' % image_path)
+        out = ccdc_monitor(cfg, date, image_ds, save)
 
-
-
+        output_lp_today, output_hp_today, output_lp, output_hp, output_conf, output_conf_today, master = get_mon_outputs(cfg, date)
+	#Write out the shapefiles
+        if np.any(out['lowprob'] > 2016000):
+            write_shapefile(out['lowprob'], output_lp_today,image_ds, gdal_frmt, 
+     	    	            ndv, band_names=None)
+	    if os.path.isfile(output_lp):
+	        os.remove(output_lp)
+            write_shapefile(out['lowprob'], output_lp,image_ds, gdal_frmt, 
+     	    	            ndv, band_names=None)
+        if np.any(out['highprob'] > 2016000):
+            write_shapefile(out['highprob'], output_hp_today,image_ds, gdal_frmt, 
+   	    	            ndv, band_names=None)
+	    if os.path.isfile(output_hp):
+	        os.remove(output_hp)
+            write_shapefile(out['highprob'], output_hp,image_ds, gdal_frmt, 
+     	    	            ndv, band_names=None)
+        if np.any(out['confirmed_today'] > 2016000):
+            write_shapefile(out['confirmed_today'], output_conf_today,image_ds, gdal_frmt, 
+   	    	            ndv, band_names=None)
+        if np.any(out['confirmed'] > 2016000):
+	    if os.path.isfile(master):
+	        os.remove(master)
+            write_shapefile(out['confirmed'], master,image_ds, gdal_frmt, 
+   	    	            ndv, band_names=None)
 	#update image list
 	out_log = [str(date),'Com',image_path]
 	done_array.append(out_log)
-#TODO Turn back
-#	with open(done_csv, 'wb') as f:
-#	    writer = csv.writer(f)
-#	    writer.writerows(done_array)
+	with open(done_csv, 'wb') as f:
+	    writer = csv.writer(f)
+	    writer.writerows(done_array)
 
+	output_rast = None
 
-        if i == (num_monitor - 1):
-	    detect=False #TODO
-	    make_map(config, datetime.strptime(str(veryfirst), '%Y%j'), datetime.strptime(str(last), '%Y%j'), datetime.strptime(str(2015001), '%Y%j'), output, '%Y%j',image_path, detect)  #TODO dates
-            #write_mon_output(output_rast, output, image_ds,
-            #                  gdal_frmt, ndv)
-        else:
-	    output_rast = None
-
+def get_mon_outputs(cfg, date):
+    "Get output shapefile names" 
+    out_dir = cfg['NRT']['master_shapefile_dir']
+    if not os.path.isdir(out_dir):
+	os.mkdir(out_dir)
+    date_path = '%s/%s' % (out_dir, date)
+    if not os.path.isdir(date_path):
+	os.mkdir(date_path)
+    output_lp_today = '%s/lowprob.shp' % (date_path)
+    output_hp_today = '%s/highprob.shp' % (date_path)
+    output_lp = '%s/lowprob.shp' % (out_dir)
+    output_hp = '%s/highprob.shp' % (out_dir)
+    output_conf = '%s/confirmed.shp' % (date_path)
+    output_conf_today = '%s/confirmed.shp' % (date_path)
+    master = cfg['NRT']['master_shapefile'] 
+    return output_lp_today, output_hp_today, output_lp, output_hp, output_conf, output_conf_today, master
 
 
 def write_mon_output(raster, output, image_ds, gdal_frmt, ndv):
     """ Write raster to output file """
-    from osgeo import gdal, gdal_array
 
     logger.debug('Writing output to disk')
 
     driver = gdal.GetDriverByName(str(gdal_frmt))
+    band_names=['change_date']
 
     if len(raster.shape) > 2:
         nband = raster.shape[2]
