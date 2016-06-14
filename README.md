@@ -1,42 +1,10 @@
-# Yet Another Timeseries Model (YATSM)
-
-[![Build Status](https://travis-ci.org/ceholden/yatsm.svg)](https://travis-ci.org/ceholden/yatsm) [![Coverage Status](https://coveralls.io/repos/ceholden/yatsm/badge.svg?branch=v0.4.0)](https://coveralls.io/r/ceholden/yatsm?branch=v0.4.0) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.17129.svg)](http://dx.doi.org/10.5281/zenodo.17129) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/ceholden/yatsm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=body_badge)
+# Near-Real-Time version of Yet Another Timeseries Model (YATSM)
 
 ## About
-The Yet Another TimeSeries Model (YATSM) algorithm is designed to monitor land
-surface phenomena, including land cover and land use change, using timeseries
-of remote sensing observations. The algorithm seeks to find distinct time
-periods, or time segments, within the timeseries by monitoring for disturbances. These time segments may be used to infer continuous periods of stable land cover, with breaks separating the segments representing ephemeral disturbances or permanent conversions in land cover or land use.
-
-The ["Yet Another..."](http://en.wikipedia.org/wiki/Yet_another) part of the algorithm name is an acknowledgement of the influence a previously published timeseries algorithm - the Continuous Change Detection and Classification (CCDC) (Zhu and Woodcock, 2014) algorithm. While YATSM began as an extension from CCDC, it was never intended as a 1 to 1 port of CCDC and will continue to diverge in its own direction.
-
-This algorithm is also influenced by other remote sensing algorithms which, like CCDC, are based in theory on tests for structural change from econometrics
-literature (Chow, 1960; Andrews, 1993; Chu *et al*, 1996; Zeileis, 2005). These other remote sensing algorithms include Break detection For Additive Season and Trend (BFAST) (Verbesselt *et al*, 2012) and LandTrendr (Kennedy *et al*, 2010). By combining ideas from CCDC, BFAST, and LandTrendr, this "Yet Another..." algorithm hopes to overcome weaknesses present in any single approach.
-
-Please consider citing as:
-
-    Christopher E. Holden. (2015). Yet Another Time Series Model (YATSM). Zenodo. 10.5281/zenodo.17129
-
-## Documentation
-
-Documentation is available [here](http://ceholden.github.io/yatsm/).
-
-Contributions to the documentation, especially for the user guide, is more than welcomed. The documentation for this project is built using [Sphinx](http://sphinx-doc.org/) using the [ReadTheDocs](https://readthedocs.org/) theme. See the `docs/` folder for documentation source material.
-
-## Example
-The simplest way of using YATSM would be the pixel-by-pixel command line interface - `run_yatsm.py`.
-
-We'll use the example [Landsat stack from Chiapas, Mexico](https://github.com/ceholden/landsat_stack) for this demonstration:
-
-``` bash
-    > yatsm pixel --band 2 --style xkcd examples/p022r049/p022r049.yaml 133 106
-```
-
-Produces:
-    ![Timeseries](docs/media/double_cut_ts_b3.png)
-    ![Modeled Timeseries](docs/media/double_cut_ts_fitted_b3.png)
+This is a version of Chris Holden's Yet Another Timeseries Model (YATSM) algorithm optimized for the use with daily MODIS data. At the moment, YATSM and the near-real-time branch of YATSM have slightly diverged. The most up-to-date YATSM repository, managed by Ceholden,  can be found [here](https://www.github.com/ceholden/yatsm). The full documentation for YATSM is available [here](http://ceholden.github.io/yatsm/).
 
 ## Installation
+
 
 It is strongly encouraged that you install YATSM into an isolated environment, either using [`virtualenv`](https://virtualenv.pypa.io/en/latest/) for `pip` installs or a separate environment using [`conda`](http://conda.pydata.org/docs/), to avoid dependency conflicts with other software.
 
@@ -65,6 +33,13 @@ A complete installation of YATSM, including acceleration dependencies and additi
     pip install -r requirements/all.txt
 ```
 
+Finally, install YATSM:
+
+``` bash
+    #Install YATSM:
+    pip install .
+```
+
 ### Conda
 Requirements for YATSM may also be installed using [`conda`](http://conda.pydata.org/docs/), Python's cross-platform and platform agnostic binary package manager from [ContinuumIO](http://continuum.io/). [`conda`](http://conda.pydata.org/docs/) makes installation of Python packages, especially scientific packages, a breeze because it includes compiled library dependencies that remove the need for a compiler or pre-installed libraries.
 
@@ -77,4 +52,11 @@ Since [`conda`](http://conda.pydata.org/docs/) makes installation so easy, insta
     conda env create -n yatsm -f environment.yaml
     # Activate
     source activate yatsm
+```
+
+And as with pip, you need to instal YATSM:
+
+``` bash
+    #Install YATSM:
+    pip install .
 ```
