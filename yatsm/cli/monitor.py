@@ -14,6 +14,7 @@ from yatsm.cli import options
 from monitor_map import make_map, write_shapefile
 from yatsm.config_parser import parse_config_file
 from yatsm.utils import get_output_name, find_results, iter_records, write_output
+from yatsm.nrt_utils import get_mon_outputs
 gdal.AllRegister()
 gdal.UseExceptions()
 
@@ -30,31 +31,33 @@ _result_record = 'yatsm_r*'
 @options.opt_date_format
 @options.opt_nodata
 @options.opt_format
-@click.option('--save', is_flag=True,
-              help='Update YATSM .npz files for monitoring')
-@click.option('--band', '-b', multiple=True, metavar='<band>', type=int,
-              help='Bands to export for coefficient/prediction maps')
-@click.option('--output_rast', '-o', metavar='<output_rast>', type=click.Choice(['ChangeScore', 'Probability']),
-              help='Output Probability or ChangeScore?')
 @click.pass_context
 
 
-def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, output_rast, save):
+def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv=0):
     """Command line interface to handle monitoring of new imagery. This program will not
      pre-process the data, which is done in yatsm.process_modis. This program will calculate
      the change probabilities in time-sequential order for all images in input monitoring log.
      Currently, the output is written to shapefiles for tileing on Mapbox. """
 
     logger_algo.setLevel(logging.DEBUG)
-    #Parse config and open input csv
+
+    #Parse config and open csv with images previously processed
     cfg = parse_config_file(config)
     done_csv = cfg['dataset']['input_file']
     read=csv.reader(open(done_csv,"rb"),delimiter=',')
     done_array = list(read)
+
+    try:
+	begin_monitor = cfg['NRT']['begin_monitor']
+    else:
+	begin_monitor = 2016001
+
+    #Get first and last dates
     last = int(done_array[-1][0])
     veryfirst = int(done_array[1][0])
 
-    #Read monitor csv
+    #Read monitor csv with images to use in monitoring
     read_mon=csv.reader(open(mon_csv,"rb"),delimiter=',')
     monitor_array = list(read_mon)
 
@@ -87,33 +90,36 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 
         #Do monitor
         logger.info('Doing image %s' % image_path)
-        out = ccdc_monitor(cfg, date, image_ds, save)
+        out = ccdc_monitor(cfg, date, image_ds)
 
+        #Get output file names
         output_lp_today, output_hp_today, output_lp, output_hp, output_conf, output_conf_today, master = get_mon_outputs(cfg, date)
-	#Write out the shapefiles
-        if np.any(out['lowprob'] > 2016000):
+
+	#Write out the shapefiles. Currently a copy is saved in the daily folders in addition to a master version. 
+        if np.any(out['lowprob'] > begin_monitor):
             write_shapefile(out['lowprob'], output_lp_today,image_ds, gdal_frmt, 
      	    	            ndv, band_names=None)
 	    if os.path.isfile(output_lp):
 	        os.remove(output_lp)
             write_shapefile(out['lowprob'], output_lp,image_ds, gdal_frmt, 
      	    	            ndv, band_names=None)
-        if np.any(out['highprob'] > 2016000):
+        if np.any(out['highprob'] > begin_monitor):
             write_shapefile(out['highprob'], output_hp_today,image_ds, gdal_frmt, 
    	    	            ndv, band_names=None)
 	    if os.path.isfile(output_hp):
 	        os.remove(output_hp)
             write_shapefile(out['highprob'], output_hp,image_ds, gdal_frmt, 
      	    	            ndv, band_names=None)
-        if np.any(out['confirmed_today'] > 2016000):
+        if np.any(out['confirmed_today'] > begin_monitor):
             write_shapefile(out['confirmed_today'], output_conf_today,image_ds, gdal_frmt, 
    	    	            ndv, band_names=None)
-        if np.any(out['confirmed'] > 2016000):
+        if np.any(out['confirmed'] > begin_monitor):
 	    if os.path.isfile(master):
 	        os.remove(master)
             write_shapefile(out['confirmed'], master,image_ds, gdal_frmt, 
    	    	            ndv, band_names=None)
-	#update image list
+
+	#update processed image csv
 	out_log = [str(date),'Com',image_path]
 	done_array.append(out_log)
 	with open(done_csv, 'wb') as f:
@@ -121,64 +127,4 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv, band, outpu
 	    writer.writerows(done_array)
 
 	output_rast = None
-
-def get_mon_outputs(cfg, date):
-    "Get output shapefile names" 
-    out_dir = cfg['NRT']['master_shapefile_dir']
-    if not os.path.isdir(out_dir):
-	os.mkdir(out_dir)
-    date_path = '%s/%s' % (out_dir, date)
-    if not os.path.isdir(date_path):
-	os.mkdir(date_path)
-    output_lp_today = '%s/lowprob.shp' % (date_path)
-    output_hp_today = '%s/highprob.shp' % (date_path)
-    output_lp = '%s/lowprob.shp' % (out_dir)
-    output_hp = '%s/highprob.shp' % (out_dir)
-    output_conf = '%s/confirmed.shp' % (date_path)
-    output_conf_today = '%s/confirmed.shp' % (date_path)
-    master = cfg['NRT']['master_shapefile'] 
-    return output_lp_today, output_hp_today, output_lp, output_hp, output_conf, output_conf_today, master
-
-
-def write_mon_output(raster, output, image_ds, gdal_frmt, ndv):
-    """ Write raster to output file """
-
-    logger.debug('Writing output to disk')
-
-    driver = gdal.GetDriverByName(str(gdal_frmt))
-    band_names=['change_date']
-
-    if len(raster.shape) > 2:
-        nband = raster.shape[2]
-    else:
-        nband = 1
-
-    ds = driver.Create(
-        output,
-        image_ds.RasterXSize, image_ds.RasterYSize, nband,
-        gdal_array.NumericTypeCodeToGDALTypeCode(raster.dtype.type)
-    )
-
-
-    if raster.ndim > 2:
-        for b in range(nband):
-            logger.debug('    writing band {b}'.format(b=b + 1))
-            ds.GetRasterBand(b + 1).WriteArray(raster[:, :, b])
-            ds.GetRasterBand(b + 1).SetNoDataValue(ndv)
-
-                
-    else:
-        logger.debug('    writing band')
-        ds.GetRasterBand(1).WriteArray(raster)
-        ds.GetRasterBand(1).SetNoDataValue(ndv)
-
-        if band_names is not None:
-            ds.GetRasterBand(1).SetDescription(band_names[0])
-            ds.GetRasterBand(1).SetMetadata({'band_1': band_names[0]})
-
-    ds.SetProjection(image_ds.GetProjection())
-    ds.SetGeoTransform(image_ds.GetGeoTransform())
-
-    ds = None
-
 

@@ -23,7 +23,7 @@ pattern = '*npz'
 _result_record = 'yatsm_r*'
 
 
-def ccdc_monitor(cfg, date, image_ds, save):
+def ccdc_monitor(cfg, date, image_ds):
     """Update previous CCDC results based on newly available imagery
        This implementation transfers the work-flow from line-based to
        2-d array based. When no regression is needed, indexing with
@@ -31,16 +31,19 @@ def ccdc_monitor(cfg, date, image_ds, save):
        exponentially. 
     """
     logger_algo.setLevel(logging.DEBUG)
+
     #Open new mage as array
     image_ar = image_ds.ReadAsArray()
-    band_names = 'Probability'
-    outputrast = 'Probability'
+
+    #Find previous result location containing numpy-saved results sorted by row. 
     result = cfg['dataset']['output']
+
+    #Convert the date to proleptic Gregorian ordinal date
     date = datetime.strptime(str(date), '%Y%j').toordinal()
 
-    #get prediction for image
+    #Do the monitoring
     consec = do_monitor(
-            date, result, image_ds, image_ar, cfg, save, outputrast
+            date, result, image_ds, image_ar, cfg
         )
 
     return consec 
@@ -56,29 +59,29 @@ def get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, con
 
     #Mask clouds
     consec_new[mask > 0] = 0
-#    import pdb; pdb.set_trace()
+
     #Set previously confirmed pixels to 0
     consec_new[confirmed > 0] = 0 
     consec_new[previous_ds > 10] = 0 
 
+    #Add newly flagged pixels to old 'consecutive' array
     consec += consec_new
 
     #Turn back to 0 if cloud free and not increasing 
     consec[(np.logical_and(mask == 0, consec_new == 0))] = 0
 
-    lowprob = np.copy(consec)
-    highprob = np.copy(consec)
-    confirmed_today = np.copy(consec)
+    #Create arrays to hold probabilities and confirmed changes
+    lowprob = np.zeros_like(consec)
+    highprob = np.zeros_like(consec)
+    confirmed_today = np.zeros_like(consec)
     d = datetime.fromordinal(date)
     date = int(d.strftime("%Y%j"))
 
     #Assign probabilities 
-    lowprob[:,:] = 0
     lowprob[consec == 3] = date
-    highprob[:,:] = 0
     highprob[consec == 4] = date
-    confirmed_today[:,:] = 0
     confirmed_today[np.logical_and(consec_new == 1, consec == 5)] = date
+
     return consec, lowprob, highprob, confirmed_today
  	
 
@@ -86,9 +89,14 @@ def get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, con
 def mask_clouds(cloud_mask,scores, image_ar, mask_values, cloudthreshold, green, swir, shadowthreshold, mask_band, vza_band, vza_threshold, test_indices):
     """Convert masked pixels to 1""" 
 
-#    cloud_mask[scores[:,:, swir] < shadowthreshold] = 1 	
+    #Mask anything that is not 1 in QA band 
     cloud_mask[image_ar[mask_band,:,:] != 1] = 1	
-#    cloud_mask[scores[:,:, green] > cloudthreshold] = 1 	
+
+    #Multiple-temporal cloud and shadow screening based on change scores
+    cloud_mask[scores[:,:, green] > cloudthreshold] = 1 	
+    cloud_mask[scores[:,:, swir] < shadowthreshold] = 1 	
+
+    #Mask pixels above view-zenith angle threshold
     cloud_mask[image_ar[vza_band,:,:] > vza_threshold] = 1	
 
     return cloud_mask
@@ -96,8 +104,13 @@ def mask_clouds(cloud_mask,scores, image_ar, mask_values, cloudthreshold, green,
 def mask_nonforest(f_mask, image_ar, coef, ndvi, rmse, ndvi_threshold, slope_threshold, rmse_threshold, test_indices):
     """Convert nonforest pixels to 1""" 
 
+    #Mask pixels whose starting model is below NDVI threshold
     f_mask[coef[:,:,0] < ndvi_threshold] = 1	
+
+    #Mask pixels whose starting model is above slope threshold. It is unlikely a stable forest will have a high slope.
     f_mask[coef[:,:,1] > slope_threshold] = 1	
+
+    #Mask pixels whose starting model is above RMSE threshold. 
     f_mask[rmse[:,:,ndvi] > rmse_threshold] = 1	
 
     return f_mask
@@ -190,6 +203,7 @@ def find_mon_result_attributes(results, bands, coefs, config, prefix=''):
 def find_mon_indices(record, date, after=False, before=False):
     """ Yield indices matching time segments for a given date"""
 
+    #Find most recent model that starts before the monitoring date
     index = np.where(record['start'] <= date)[0]
     index = index[::-1]
     _, _index = np.unique(record['px'][index], return_index=True)
@@ -205,7 +219,7 @@ def get_prediction(index, rec, i_coef, n_i_bands, X, i_bands, raster):
     return np.tensordot(_coef, X, axes=(1, 0))
 
 
-def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
+def do_monitor(date, result_location, image_ds, image_ar, cfg, save, 
 		   bands='all', prefix='', ndv=-9999, pattern=_result_record):
 
     """ Get change prediction for date of input image.
@@ -241,6 +255,10 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
     consec_file = cfg['NRT']['out_file']
     shapefile_dir = cfg['NRT']['master_shapefile_dir']
     previous = cfg['NRT']['previousresult'] 
+    try:
+	begin_monitor = cfg['NRT']['begin_monitor']
+    else:
+	begin_monitor = 2016001
     # Find results
     records = find_results(result_location, pattern)
 
@@ -251,6 +269,8 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
     n_i_bands = len(i_bands)
     im_Y = image_ds.RasterYSize
     im_X = image_ds.RasterXSize
+
+    #Initiate arrays for prediction, change scores, rmse, coefficients, and consecutive days above threshold
     raster = np.zeros((im_Y, im_X, n_bands), dtype=np.float16) * int(ndv)
     cloud_mask = np.zeros((im_Y, im_X), dtype=np.int32) * int(ndv)
     f_mask = np.zeros((im_Y, im_X), dtype=np.int32) * int(ndv)
@@ -274,9 +294,6 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
 
     coef = np.zeros((im_Y, im_X, len(i_coef)), dtype=np.float16) * int(ndv)
 
-    logger.debug('Allocating memory')
-    logger.debug('Processing results')
-
     logger.info('Creating prediction')
     for z, rec in iter_records(records, warn_on_empty=True):
 
@@ -299,12 +316,13 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
            (rec['start'] + rec['end'])
             / 2.0)[:, np.newaxis] * \
             rec['coef'][:, 1, :]
-#    	   import pdb; pdb.set_trace()
+
            coef[_py ,_px, :len(i_coef)] = rec['coef'][:,:,ndvi][index]  
-#    write_output(coef, 'coef.tif', image_ds, 'GTiff', 0, band_names=None) 
+
     #Calculate change score for each band 
     logger.info('Calculating change scores')
     scores = get_mon_scores(raster, image_ar, n_bands, i_bands, rmse, scores)
+
     # Mask out everything based on thresholds  
     logger.info('Creating cloud mask')
     cloud_mask = mask_clouds(cloud_mask, scores, image_ar, mask_values, cloudthreshold, green, swir, shadowthreshold, mask_band, vza_band, vza_threshold, test_ind)
@@ -312,6 +330,8 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
     #We're only interested in places that are deforestation
     logger.info('Creating forest mask')
     f_mask = mask_nonforest(f_mask, image_ar, coef, ndvi, rmse, ndvi_threshold, slope_threshold, rmse_threshold, test_ind)
+
+    #Combine the masks
     mask = cloud_mask + f_mask
     #load monitor file
     if os.path.isfile(consec_file):
@@ -326,20 +346,23 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save, outputrast,
     #TODO Hack: don't overlap results from 2015 
     previous_im = gdal.Open(previous, gdal.GA_ReadOnly)
     previous_ds = previous_im.ReadAsArray()
-    confirmed[confirmed < 2016000] = 0
+    confirmed[confirmed < begin_monitor] = 0
+
+    #Calculate change probabilities for the day
     consec, lowprob, highprob, confirmed_today = get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, confirmed, previous_ds)
 
+    #Add today's confirmed changes to previous confirmed changes
     confirmed[:,:] += confirmed_today[:,:] 
 
-    if save:
-        out = {}
-        for k, v in z.iteritems(): # Get meta data items from z
-            out[k] = v
-        out['consec'] = consec 
-        out['lowprob'] = lowprob
-        out['highprob'] = highprob 
-        out['confirmed_today'] = confirmed_today
-        out['confirmed'] = confirmed 
-        np.savez(consec_file, **out)
+    #Save the results
+    out = {}
+    for k, v in z.iteritems(): # Get meta data items from z
+        out[k] = v
+    out['consec'] = consec 
+    out['lowprob'] = lowprob
+    out['highprob'] = highprob 
+    out['confirmed_today'] = confirmed_today
+    out['confirmed'] = confirmed 
+    np.savez(consec_file, **out)
     return out 
 

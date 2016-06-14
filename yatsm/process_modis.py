@@ -10,8 +10,6 @@ from shutil import copyfile
 from nrt_utils import *
 from yatsm.cli import options 
 from yatsm.config_parser import parse_config_file
-#from image_composites import image_composite
-#from prep_modis import *
 
 @click.command(short_help='Download and pre-process MODIS data in NRT')
 @options.arg_config_file

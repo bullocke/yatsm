@@ -31,31 +31,35 @@ WARN_ON_EMPTY = False
 @options.opt_exampleimg
 @click.option('--detect', is_flag=True,
               help='Output date detected instead of change date')
+@click.option('--stable', is_flag=True,
+              help='Include stable landcovers or just change dates')
+@click.option('--shapefile', is_flag=True,
+              help='Output format of shapefile instead of image')
 
 @click.pass_context
 
 def monitor_map(cfx, config, start_date, end_date, monitor_date, output,
-               date_frmt, image, detect):
+               date_frmt, image, detect, stable, shapefile):
     """
     Examples: TODO
     """
     make_map(config, start_date, end_date, monitor_date, output,
-               date_frmt, image, detect)
+               date_frmt, image, detect, stable, shapefule)
 
 
 
 def make_map(config, start_date, end_date, monitor_date, output,
-               date_frmt, image, detect):
+               date_frmt, image, detect, stable, shapefile):
 
 
-    gdal_frmt = 'GTiff' #TODO
-    gdal_frmt = str(gdal_frmt)  # GDAL GetDriverByName doesn't work on Unicode
+    gdal_frmt = 'GTiff' #TODO: Hard-coded
+    gdal_frmt = str(gdal_frmt) 
     config = parse_config_file(config)
-    frmt = '%Y%j' #TODO 
-    ndv = 0 #TODO 
+    ndv = 0 #TODO: Hard-coded 
     start_date = start_date.toordinal()
     end_date = end_date.toordinal()
     monitor_date = monitor_date.toordinal()
+#    frmt = '%Y%j' #TODO 
     #Need to incorporate this into monitor script correctly
 #    start_date = dt.strptime(str(start_date), frmt).toordinal()
 #    end_date = dt.strptime(str(end_date), frmt).toordinal()
@@ -71,15 +75,12 @@ def make_map(config, start_date, end_date, monitor_date, output,
 
     changemap = get_NRT_class(
             config, start_date, end_date, monitor_date, detect,image_ds,
-            ndv=ndv
+            stable, ndv=ndv
         )
     band_names=['class']
-    shapefile = True #TODO 
-    if shapefile: #TODO
+    if shapefile:
         write_shapefile(changemap, output,image_ds, gdal_frmt, 
 	    	         ndv, band_names=band_names)
-        #write_output(changemap, '/projectnb/landsat/datasets/MODIS/h12v09/monitor/2016.tif', image_ds, gdal_frmt, ndv,
-         #            band_names=band_names)
     else:
         write_output(changemap, output, image_ds, gdal_frmt, ndv,
                      band_names=band_names)
@@ -93,15 +94,17 @@ def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
 
     logger.debug('Writing output to disk')
 
+    #Create memory raster to later polygonize
     driver = gdal.GetDriverByName('MEM')
 
     nband = 1
     ds = driver.Create(
         output,
         image_ds.RasterXSize, image_ds.RasterYSize, nband,
-        gdal_array.NumericTypeCodeToGDALTypeCode(changemap.dtype.type) #TODO issue
+        gdal_array.NumericTypeCodeToGDALTypeCode(changemap.dtype.type) 
     )
 
+    #Write change image to memory layer
     ds.GetRasterBand(1).WriteArray(changemap)
     ds.GetRasterBand(1).SetNoDataValue(ndv)
 
@@ -110,11 +113,11 @@ def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
 
     srcband = ds.GetRasterBand(1)
 
-#  create output datasource
-
+    #Set to MODIS Sinusoidal projection
     dst_srs = osr.SpatialReference()
     dst_srs.ImportFromProj4('+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs')
 
+    #Create vector layer
     dst_layername = output
     drv = ogr.GetDriverByName("ESRI Shapefile")
     dst_ds = drv.CreateDataSource( dst_layername )
@@ -122,13 +125,14 @@ def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
     newField = ogr.FieldDefn('Date', ogr.OFTInteger)
     dst_layer.CreateField(newField)
 
+    #Polygonize memory raster to vector layer
     gdal.Polygonize( srcband, srcband, dst_layer, 0, ["8CONNECTED=8"], callback=None )	
 
     ds = None
     dst_layer = None 
 
 
-def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
+def get_NRT_class(cfg, start, end, monitor,detect,image_ds,stable,
             ndv=-9999):
     """ Output a raster with forest/non forest classes for time period specied. 
 
@@ -153,7 +157,7 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
     ndvi_thresh = cfg['NRT']['ndvi_threshold']
     slope_thresh = cfg['NRT']['slope_threshold']
     ndvi = cfg['CCDCesque']['test_indices']
-    pattern = 'yatsm_*' #TODO 
+    pattern = 'yatsm_*'  
     result_location = cfg['dataset']['output']
     # Find results
     records = find_results(result_location, pattern)
@@ -168,14 +172,12 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
 
     raster = np.zeros((image_ds.RasterYSize, image_ds.RasterXSize, n_bands),
                      dtype=np.int32) * int(ndv)
-    stable = False #TODO 
-    if stable: #TODO 
+    if stable: 
         raster[:,:]=1
-    changemap = True #TODO: Prob or change? 
     for a, rec in iter_records(records):
 
         # How many changes for unique values of px_changed?
-        if changemap & (n_coefs > 0):
+        if (n_coefs > 0):
                 # Normalize intercept to mid-point in time segment
             rec['coef'][:, 0, :] += (
             (rec['start'] + rec['end'])
@@ -186,7 +188,7 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
 	    forest = np.where((rec['coef'][indice][:,0,ndvi]>ndvi_thresh))[0]
 
 	    #Set forested pixels to two
-	    if stable: #TODO 
+	    if stable:  
                 raster[rec['py'][indice][forest],rec['px'][indice][forest]] = 2
 	    else:
                 raster[rec['py'][indice][forest],rec['px'][indice][forest]] = 0
@@ -197,26 +199,20 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,
 	    i_rmse = (rec['rmse'][:,ndvi]<rmse_thresh)[:,0]
 	    i_slope = (rec['coef'][:,1,ndvi]<slope_thresh)[:,0]
             deforestation = np.where(np.logical_and.reduce((i_break, i_ndvi, i_end, i_rmse, i_slope)))[0]
-            #Overwrite with date of deforestation. This needs to be faster
-#	    if 
 	    if np.shape(deforestation)[0] > 0:
-                if changemap & detect:
+                if detect:
                     dates = np.array([int(dt.fromordinal(_d).strftime('%Y%j'))
                                      for _d in rec['detect'][deforestation]])
 		    for i, a in enumerate(dates):
 			    raster[rec['py'][deforestation[i]],rec['px'][deforestation[i]]]=dates[i]
-                elif changemap:
+                elsep:
 		    try: 
                         dates = np.array([int(dt.fromordinal(_d).strftime('%Y%j'))
                                          for _d in rec['break'][deforestation]])
 		    except:
 			continue 
-			#import pdb; pdb.set_trace()
 		    for i, a in enumerate(dates):
 			    raster[rec['py'][deforestation][i],rec['px'][deforestation][i]]=dates[i]                   
-                else:
-                    raster[rec['py'][deforestation],
-                           rec['px'][deforestation]] = rec['consec'][deforestation]
 
             #Overwrite if it contained nonforest before monitoring period? 
 	    nonforest = np.where((rec['coef'][indice][:,0,ndvi]<ndvi_thresh) \
