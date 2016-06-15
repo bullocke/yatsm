@@ -134,23 +134,11 @@ def write_shapefile(changemap, output, image_ds, gdal_frmt, ndv, band_names):
 
 def get_NRT_class(cfg, start, end, monitor,detect,image_ds,stable,
             ndv=-9999):
-    """ Output a raster with forest/non forest classes for time period specied. 
-
-    Args:
-        date (int): Ordinal date for prediction image
-        result_location (str): Location of the results
-        ndvi (list): Band of NDVI in results (indexed on 1). 
-        image_ds (gdal.Dataset): Example dataset
-        prefix (str, optional): Use coef/rmse with refit prefix (default: '')
-        ndv (int, optional): NoDataValue (default: -9999)
-        pattern (str, optional): filename pattern of saved record results
-
-    Returns:
-        tuple: A tuple (np.ndarray, list) containing the 3D numpy.ndarray of
-            with the first band:
-		1 = stable forest 2 = stable nonforest 3 = forest to nonforest
-            second band:
-		date of forest to nonforest
+    """ Output a raster with forest/non forest/deforestation classes for time period specied. 
+        Legend values:
+	    1 = Stable Non-Forest
+	    2 = Stable Forest
+	    3 = Date of Deforestation
     """
 
     rmse_thresh = cfg['NRT']['rmse_threshold']
@@ -205,7 +193,7 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,stable,
                                      for _d in rec['detect'][deforestation]])
 		    for i, a in enumerate(dates):
 			    raster[rec['py'][deforestation[i]],rec['px'][deforestation[i]]]=dates[i]
-                elsep:
+                else:
 		    try: 
                         dates = np.array([int(dt.fromordinal(_d).strftime('%Y%j'))
                                          for _d in rec['break'][deforestation]])

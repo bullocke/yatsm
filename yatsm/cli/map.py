@@ -251,12 +251,6 @@ def find_indices(record, date, after=False, before=False):
         indices.
 
     """
-    #for before given your okay with there being a break
-#    if before:
-#	index = np.where((record['start'] <= date) & (record['end'] >= (date-2000)))[0]
-#	import pdb; pdb.set_trace()
-#	yield _before_qa, index
-    #import pdb; pdb.set_trace()
     if before:
         # Model before, as long as it didn't change
         index = np.where((record['end'] <= date) & (record['break'] == 0))[0]

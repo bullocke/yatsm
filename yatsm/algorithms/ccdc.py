@@ -431,18 +431,15 @@ class CCDCesque(YATSM):
 
         # Check for scores above critical value
         mag = np.linalg.norm(np.abs(scores), axis=1)
-        mag2 = np.where(mag > self.threshold)
-	#change 734502 to date your looking for with date.fromordinal or to ordinal
-#        if (np.shape(mag2)[1] > (self.consecutive - 2)) & (self.X[self.here + 1, 1] > 734502):
-#        if (np.all(mag > self.threshold)) & (self.X[self.here + 1, 1] > 734502):
+        #mag2 = np.where(mag > self.threshold)
         if np.all(mag > self.threshold):
             logger.debug('CHANGE DETECTED')
 
             # Record break date
             self.record[self.n_record]['break'] = self.dates[self.here + 1]
-	    #import pdb; pdb.set_trace()
-	    if ((self.here+consecutive) - self.dates.shape[0]) <= 0:
-                self.record[self.n_record]['detect'] = self.dates[self.here + consecutive]
+	#    import pdb; pdb.set_trace()
+	    if ((self.here+self.consecutive) - self.dates.shape[0]) <= 0:
+                self.record[self.n_record]['detect'] = self.dates[self.here + self.consecutive]
 	    else:
                 self.record[self.n_record]['detect'] = self.dates[self.here + 1]
             # Record magnitude of difference for tested indices

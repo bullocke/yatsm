@@ -84,6 +84,7 @@ entry_points = '''
     changemap=yatsm.cli.changemap:changemap
     monitor=yatsm.cli.monitor:monitor
     monitor_map=yatsm.cli.monitor_map:monitor_map
+    process_modis=yatsm.process_modis:process_modis
 '''
 
 setup_dict = dict(

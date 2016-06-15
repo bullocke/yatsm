@@ -219,7 +219,7 @@ def get_prediction(index, rec, i_coef, n_i_bands, X, i_bands, raster):
     return np.tensordot(_coef, X, axes=(1, 0))
 
 
-def do_monitor(date, result_location, image_ds, image_ar, cfg, save, 
+def do_monitor(date, result_location, image_ds, image_ar, cfg, 
 		   bands='all', prefix='', ndv=-9999, pattern=_result_record):
 
     """ Get change prediction for date of input image.
@@ -257,7 +257,7 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg, save,
     previous = cfg['NRT']['previousresult'] 
     try:
 	begin_monitor = cfg['NRT']['begin_monitor']
-    else:
+    except:
 	begin_monitor = 2016001
     # Find results
     records = find_results(result_location, pattern)

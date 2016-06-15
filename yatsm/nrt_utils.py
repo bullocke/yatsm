@@ -603,3 +603,21 @@ if __name__ == '__main__':
         logger.error('Could not process {n} pairs'.format(n=failed))
     logger.info('Complete')
 
+def get_mon_outputs(cfg, date):
+    "Get output shapefile names" 
+    out_dir = cfg['NRT']['master_shapefile_dir']
+    if not os.path.isdir(out_dir):
+	os.mkdir(out_dir)
+    date_path = '%s/%s' % (out_dir, date)
+    if not os.path.isdir(date_path):
+	os.mkdir(date_path)
+    output_lp_today = '%s/lowprob.shp' % (date_path)
+    output_hp_today = '%s/highprob.shp' % (date_path)
+    output_lp = '%s/lowprob.shp' % (out_dir)
+    output_hp = '%s/highprob.shp' % (out_dir)
+    output_conf = '%s/confirmed.shp' % (date_path)
+    output_conf_today = '%s/confirmed.shp' % (date_path)
+    master = cfg['NRT']['master_shapefile'] 
+    return output_lp_today, output_hp_today, output_lp, output_hp, output_conf, output_conf_today, master
+
+

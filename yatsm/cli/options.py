@@ -31,6 +31,11 @@ arg_output = click.argument(
     type=click.Path(writable=True, dir_okay=False,
                     resolve_path=True))
 
+arg_mon_csv = click.argument(
+    'mon_csv',
+    metavar='<mon_csv>',
+    type=click.Path(writable=True, dir_okay=False,
+                    resolve_path=True))
 
 arg_total_jobs = click.argument(
     'total_jobs',

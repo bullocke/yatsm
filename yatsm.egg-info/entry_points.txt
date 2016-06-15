@@ -12,4 +12,5 @@
     map=yatsm.cli.map:map
     changemap=yatsm.cli.changemap:changemap
     monitor=yatsm.cli.monitor:monitor
+    process_modis=yatsm.process_modis:process_modis
     monitor_map=yatsm.cli.monitor_map:monitor_map

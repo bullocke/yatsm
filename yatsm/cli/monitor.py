@@ -27,14 +27,13 @@ _result_record = 'yatsm_r*'
 @click.command(short_help='Monitor for changes give up to 1 year of new images')
 @options.arg_config_file
 @options.arg_mon_csv
-@options.arg_output
 @options.opt_date_format
 @options.opt_nodata
 @options.opt_format
 @click.pass_context
 
 
-def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv=0):
+def monitor(ctx, config, mon_csv, gdal_frmt, date_frmt, ndv=0):
     """Command line interface to handle monitoring of new imagery. This program will not
      pre-process the data, which is done in yatsm.process_modis. This program will calculate
      the change probabilities in time-sequential order for all images in input monitoring log.
@@ -50,7 +49,7 @@ def monitor(ctx, config, output, mon_csv, gdal_frmt, date_frmt, ndv=0):
 
     try:
 	begin_monitor = cfg['NRT']['begin_monitor']
-    else:
+    except:
 	begin_monitor = 2016001
 
     #Get first and last dates

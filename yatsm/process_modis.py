@@ -43,10 +43,10 @@ def process_modis(ctx, config):
     download_list=[]
     date_list=[]
     #Download the images
-    download_list = get_modis("MOD09GA", tile, 2016, download_list) 
-    download_list = get_modis("MYD09GA", tile, 2016, download_list)
-    download_list = get_modis("MOD09GQ", tile, 2016, download_list)
-    download_list = get_modis("MYD09GQ", tile, 2016, download_list)
+#    download_list = get_modis("MOD09GA", tile, 2016, download_list) 
+#    download_list = get_modis("MYD09GA", tile, 2016, download_list)
+#    download_list = get_modis("MOD09GQ", tile, 2016, download_list)
+#    download_list = get_modis("MYD09GQ", tile, 2016, download_list)
     #Pre-process the images
     pre = preprocess(downloaddirectory, stackdirectory, "MOD*09*hdf")
     pre_list.append(pre)
@@ -238,13 +238,12 @@ def preprocess(downloaddirectory, stackdirectory, pattern):
                              ndv=-9999, compression='None',
                              tiled=False,
                              blockxsize=None, blockysize=blockysize)
+#                create_stack(p, o, ndv=-9999, compression='None', tiled=False, blockxsize=None, blockysize=blockysize)
 	    except:
                 logger.error('Could not preprocess pair: {p1} {p2}'.format(
                         p1=p[0], p2=p[1]))
-                failed += 1
+	        sys.exit()
 
-    if failed != 0:
-        logger.error('Could not process {n} pairs'.format(n=failed))
     logger.info('Complete')
 
 
