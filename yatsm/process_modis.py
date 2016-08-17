@@ -13,9 +13,10 @@ from yatsm.config_parser import parse_config_file
 
 @click.command(short_help='Download and pre-process MODIS data in NRT')
 @options.arg_config_file
+@click.argument('year', metavar='<year>', nargs=1, type=click.INT)
 @click.pass_context
 
-def process_modis(ctx, config):
+def process_modis(ctx, config, year):
     """Master function
     Inputs:
 	config: Configuration file for YATSM with NRT parameters incldued
@@ -27,11 +28,35 @@ def process_modis(ctx, config):
     wkdir=os.getcwd()
     #Change to directory to work in 
     cfg = parse_config_file(config)
+
     downloaddirectory = cfg['NRT']['download_directory'] #Where images get downloaded
-    stackdirectory = cfg['NRT']['stack_directory'] #Where images get stacked
-    outputdir = cfg['NRT']['output_directory'] #Where images get composited
-    tile = cfg['NRT']['tile'] #The modis tile
+    if downloaddirectory[-1] != '/':
+	downloaddirectory = downloaddirectory + '/'
+    downloaddirectory = downloaddirectory + str(year)
+    if not os.path.exists(downloaddirectory):
+	os.makedirs(downloaddirectory)
+
+    stackdirectory = cfg['NRT']['stack_directory'] #Where images get composited
+    if stackdirectory[-1] != '/':
+	stackdirectory = stackdirectory + '/'
+    stackdirectory = stackdirectory + str(year)
+    if not os.path.exists(stackdirectory):
+	os.makedirs(stackdirectory)
+
     monitor_log_dir = cfg['NRT']['monitor_log_dir']
+    if not os.path.exists(monitor_log_dir):
+	os.makedirs(monitor_log_dir)
+
+    process_log = stackdirectory + '/process_log.csv'
+
+    try:
+	with open(process_log, 'rb') as f:
+            reader = csv.reader(f)
+            old_process = list(reader) 
+    except:
+	old_process = []
+
+    tile = cfg['NRT']['tile'] #The modis tile
     vza_band = cfg['NRT']['view_angle_band']
     mask_band = cfg['dataset']['mask_band']
     mask_val = 0
@@ -43,30 +68,43 @@ def process_modis(ctx, config):
     download_list=[]
     date_list=[]
     #Download the images
-#    download_list = get_modis("MOD09GA", tile, 2016, download_list) 
-#    download_list = get_modis("MYD09GA", tile, 2016, download_list)
-#    download_list = get_modis("MOD09GQ", tile, 2016, download_list)
-#    download_list = get_modis("MYD09GQ", tile, 2016, download_list)
+    download_list = get_modis("MOD09GA", tile, year, download_list) 
+    download_list = get_modis("MYD09GA", tile, year, download_list)
+    download_list = get_modis("MOD09GQ", tile, year, download_list)
+    download_list = get_modis("MYD09GQ", tile, year, download_list)
+
     #Pre-process the images
-    pre = preprocess(downloaddirectory, stackdirectory, "MOD*09*hdf")
-    pre_list.append(pre)
-    pre = preprocess(downloaddirectory, stackdirectory, "MYD*09*hdf")
-    pre_list.append(pre)
+    pre = preprocess(downloaddirectory, stackdirectory, "MOD*09*hdf", old_process)
+    pre_list.extend(pre)
+    pre = preprocess(downloaddirectory, stackdirectory, "MYD*09*hdf", old_process)
+    pre_list.extend(pre)
     #Find pairs of images to composite, or find which days have only 1 image
-    tocomp_list, myd_list, mod_list = find_comp_pairs(stackdirectory, outputdir, tile)
+    tocomp_list, myd_list, mod_list = find_comp_pairs(stackdirectory, tile)
+
     #Composite the images based on view angle
     for images in tocomp_list:
-	d, comp = composite(images, outputdir, tile, vza_band, mask_band, mask_val)
+	d, comp = composite(images, stackdirectory, tile, vza_band, mask_band, mask_val)
 	comp_list.append(comp)
 	date_list.append(d)
 
     #if no images that day just copy original modis file
     for image in mod_list:
-	d, im = copy_image(image, outputdir, tile)
+        try:
+	    d, im, success = copy_image(image, stackdirectory, tile)
+	except:
+	    success = False
+        if success:
+	    os.remove(image)	
 	comp_list.append(im)
 	date_list.append(d)
+
     for image in myd_list:
-	d, im = copy_image(image, outputdir, tile)
+        try:
+	    d, im, success = copy_image(image, stackdirectory, tile)
+	except:
+	    success = False
+        if success:
+	    os.remove(image)	
 	comp_list.append(im)
 	date_list.append(d)
     
@@ -86,11 +124,15 @@ def process_modis(ctx, config):
 	w = csv.writer(f)
 	for i in range(len(out_csv['date'])):
 	    w.writerow([out_csv[k][i] for k in out_csv.keys()])
-    
+
+    with open(process_log, 'a') as f:
+	w = csv.writer(f)
+	for i in pre_list:
+	    if [i] not in pre_list:
+  	        w.writerow([i])
 
 
-
-def find_comp_pairs(location, outputdir, tile):
+def find_comp_pairs(location, tile):
     """!!!!Re-written from code by Chris Holden!!!!
        Finds matching sets of M[OY]D09GQ and M[OY]D09GA within location
 
@@ -128,7 +170,7 @@ def find_comp_pairs(location, outputdir, tile):
     myd = []
     for d in np.unique(dates):
 	r = d[1:8]
-	image = '%s/Composite_%s_%s.gtif' % (outputdir,tile, r)
+	image = '%s/Composite_%s_%s.gtif' % (location,tile, r)
 	if os.path.isfile(image):
 	    continue 
         i = np.where(dates == d)[0]
@@ -149,26 +191,33 @@ def find_comp_pairs(location, outputdir, tile):
 
 
 
-def composite(images, outputdir, tile, vza_band, mask_band, mask_val):
+def composite(images, stackdirectory, tile, vza_band, mask_band, mask_val):
     s = os.path.basename(images[0]).split('_')
     date = s[1][1:]
-    output = '%s/Composite_%s_%s.gtif'  % (outputdir, tile, date) 
+    output = '%s/Composite_%s_%s.gtif'  % (stackdirectory, tile, date) 
     algo='minVZA'
     expr=False
     oformat='GTiff'
     blue=vza_band
     print 'Compositing %s' % output
-    image_composite(images, algo, output, oformat, vza_band, mask_band, mask_val)
+    try:
+	success = image_composite(images, algo, output, oformat, vza_band, mask_band, mask_val)
+    except:
+	success = False
+    if success:
+	for i in images:
+	    os.remove(i)	
     return date, output
 
-def copy_image(image, outputdir, tile):
+def copy_image(image, stackdirectory, tile):
     t = os.path.basename(image).split('/')[0]
     s = os.path.basename(t).split('_')
     date = s[1][1:]
-    output = '%s/Composite_%s_%s.gtif'  % (outputdir, tile, date) 
+    output = '%s/Composite_%s_%s.gtif'  % (stackdirectory, tile, date) 
     print 'Copying %s' % output
     copyfile(image,output)
-    return date, output
+    success = True
+    return date, output, success
     
 def download_files(ftp_con, sub, download_list):
     """!!Writen by Paulo Arevalo!!
@@ -205,7 +254,6 @@ def get_modis(product, sub, start_year, download_list):
     ftp = ftp_connect("ladsweb.nascom.nasa.gov", "anonymous", 'bullocke@bu.edu', "/allData/6/" + product)
     # Iterate over folder names, download all the files
     ftp.cwd(str(start_year))
-    print ftp.pwd()
     day_list = ftp.nlst()  # Get day folder list
     for d in day_list:
         ftp.cwd(str(d))
@@ -218,7 +266,7 @@ def get_modis(product, sub, start_year, download_list):
     ftp.quit()
     return download_list
 
-def preprocess(downloaddirectory, stackdirectory, pattern):
+def preprocess(downloaddirectory, stackdirectory, pattern, old_process):
     blockysize = 1
     pairs = find_MODIS_pairs(downloaddirectory, pattern)
     output_names = get_output_names(pairs,stackdirectory)   
@@ -228,7 +276,7 @@ def preprocess(downloaddirectory, stackdirectory, pattern):
         product = s[0][0:3]
         date = s[1]
 	fullpath = '%s/%s_%s_stack.gtif' % (stackdirectory, product, date)
-        if os.path.isfile(fullpath):
+        if ([fullpath] in old_process) or os.path.isfile(fullpath):
 	    continue
 	else:
             logger.info('Stacking {i} / {n}: {p}'.format(
@@ -238,11 +286,10 @@ def preprocess(downloaddirectory, stackdirectory, pattern):
                              ndv=-9999, compression='None',
                              tiled=False,
                              blockxsize=None, blockysize=blockysize)
-#                create_stack(p, o, ndv=-9999, compression='None', tiled=False, blockxsize=None, blockysize=blockysize)
 	    except:
                 logger.error('Could not preprocess pair: {p1} {p2}'.format(
                         p1=p[0], p2=p[1]))
-	        sys.exit()
+		continue 
 
     logger.info('Complete')
 

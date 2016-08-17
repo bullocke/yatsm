@@ -44,7 +44,7 @@ def monitor_map(cfx, config, start_date, end_date, monitor_date, output,
     Examples: TODO
     """
     make_map(config, start_date, end_date, monitor_date, output,
-               date_frmt, image, detect, stable, shapefule)
+               date_frmt, image, detect, stable, shapefile)
 
 
 
@@ -59,13 +59,6 @@ def make_map(config, start_date, end_date, monitor_date, output,
     start_date = start_date.toordinal()
     end_date = end_date.toordinal()
     monitor_date = monitor_date.toordinal()
-#    frmt = '%Y%j' #TODO 
-    #Need to incorporate this into monitor script correctly
-#    start_date = dt.strptime(str(start_date), frmt).toordinal()
-#    end_date = dt.strptime(str(end_date), frmt).toordinal()
-#    monitor_date = dt.strptime(str(monitor_date), frmt).toordinal()
-
-    #start_date, end_date = start_date.toordinal(), end_date.toordinal()
 
     try:
         image_ds = gdal.Open(image, gdal.GA_ReadOnly)
@@ -181,9 +174,9 @@ def get_NRT_class(cfg, start, end, monitor,detect,image_ds,stable,
 	    else:
                 raster[rec['py'][indice][forest],rec['px'][indice][forest]] = 0
 
-	    i_break = (rec['break'] >= end)
+	    i_break = (rec['break'] <= end) & (rec['break'] >= monitor)
 	    i_ndvi = (rec['coef'][:,0,ndvi]>ndvi_thresh)[:,0]
-	    i_end = (rec['start'] <= end)
+	    i_end = (rec['start'] <= monitor)
 	    i_rmse = (rec['rmse'][:,ndvi]<rmse_thresh)[:,0]
 	    i_slope = (rec['coef'][:,1,ndvi]<slope_thresh)[:,0]
             deforestation = np.where(np.logical_and.reduce((i_break, i_ndvi, i_end, i_rmse, i_slope)))[0]

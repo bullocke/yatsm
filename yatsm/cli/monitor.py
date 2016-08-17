@@ -47,6 +47,7 @@ def monitor(ctx, config, mon_csv, gdal_frmt, date_frmt, ndv=0):
     read=csv.reader(open(done_csv,"rb"),delimiter=',')
     done_array = list(read)
 
+    #Beginning of monitoring time period. 
     try:
 	begin_monitor = cfg['NRT']['begin_monitor']
     except:
@@ -96,6 +97,8 @@ def monitor(ctx, config, mon_csv, gdal_frmt, date_frmt, ndv=0):
 
 	#Write out the shapefiles. Currently a copy is saved in the daily folders in addition to a master version. 
         if np.any(out['lowprob'] > begin_monitor):
+	    if os.path.isfile(output_lp_today):
+	        os.remove(output_lp_today)
             write_shapefile(out['lowprob'], output_lp_today,image_ds, gdal_frmt, 
      	    	            ndv, band_names=None)
 	    if os.path.isfile(output_lp):
@@ -103,6 +106,8 @@ def monitor(ctx, config, mon_csv, gdal_frmt, date_frmt, ndv=0):
             write_shapefile(out['lowprob'], output_lp,image_ds, gdal_frmt, 
      	    	            ndv, band_names=None)
         if np.any(out['highprob'] > begin_monitor):
+	    if os.path.isfile(output_hp_today):
+	        os.remove(output_hp_today)
             write_shapefile(out['highprob'], output_hp_today,image_ds, gdal_frmt, 
    	    	            ndv, band_names=None)
 	    if os.path.isfile(output_hp):
@@ -110,6 +115,8 @@ def monitor(ctx, config, mon_csv, gdal_frmt, date_frmt, ndv=0):
             write_shapefile(out['highprob'], output_hp,image_ds, gdal_frmt, 
      	    	            ndv, band_names=None)
         if np.any(out['confirmed_today'] > begin_monitor):
+	    if os.path.isfile(output_conf_today):
+	        os.remove(output_conf_today)
             write_shapefile(out['confirmed_today'], output_conf_today,image_ds, gdal_frmt, 
    	    	            ndv, band_names=None)
         if np.any(out['confirmed'] > begin_monitor):

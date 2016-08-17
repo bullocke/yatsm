@@ -223,8 +223,8 @@ def image_composite(inputs, algo, output, oformat, vza, mask_band, mask_val):
                 if _has_progressbar:
                     pbar.update(int((i + 1) / n_windows * 100))
 
-#if __name__ == '__main__':
- #   image_composite()
+    success = True
+    return success
 
 def find_MODIS_pairs(location, pattern='M*09*hdf'):
     """ Finds matching sets of M[OY]D09GQ and M[OY]D09GA within location
