@@ -50,7 +50,7 @@ def ccdc_monitor(cfg, date, image_ds):
 
 
 
-def get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, confirmed, previous_ds):
+def get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, confirmed, previous_ds, firstdate):
     """Return pixels that exceed threshold of deforestation on given date
     """
 
@@ -77,12 +77,20 @@ def get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, con
     d = datetime.fromordinal(date)
     date = int(d.strftime("%Y%j"))
 
-    #Assign probabilities 
-    lowprob[consec == 3] = date
-    highprob[consec == 4] = date
-    confirmed_today[np.logical_and(consec_new == 1, consec == 5)] = date
+    #Assign change dates for beginning of change
+    first_indice = np.logical_and(consec_new == 1, consec == 1)
+    firstdate[first_indice] = date
 
-    return consec, lowprob, highprob, confirmed_today
+    #Assign probabilities 
+    lowprob[consec == 3] = firstdate[consec == 3]
+    highprob[consec == 4] = firstdate[consec == 4]
+    change_indice = np.logical_and(consec_new == 1, consec == 5)
+    confirmed_today[change_indice] = firstdate[change_indice]
+
+    #Reset day of change
+    firstdate[change_indice] = 0
+
+    return consec, lowprob, highprob, confirmed_today, firstdate
  	
 
 
@@ -335,11 +343,17 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg,
     mask = cloud_mask + f_mask
     #load monitor file
     if os.path.isfile(consec_file):
-        consec = np.load(consec_file)['consec'] 
-        confirmed = np.load(consec_file)['confirmed'] 
+	load_file = np.load(consec_file)
+        consec = load_file['consec'] 
+        confirmed = load_file['confirmed'] 
+	try:
+            firstdate = load_file['firstdate'] 
+	except:
+	    firstdate = np.zeros_like(confirmed)
     else:
         consec = np.zeros((im_Y, im_X), dtype=np.int32) * int(ndv)
         confirmed = np.zeros((im_Y, im_X), dtype=np.int32) * int(ndv)
+	firstdate = np.zeros_like(confirmed)
     #Reset previous changes 
     consec[consec[:,:] >= 5] = 0
 
@@ -349,7 +363,7 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg,
     confirmed[confirmed < begin_monitor] = 0
 
     #Calculate change probabilities for the day
-    consec, lowprob, highprob, confirmed_today = get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, confirmed, previous_ds)
+    consec, lowprob, highprob, confirmed_today, firstdate = get_mon_changes(scores, consec_new, consec, ndvi, mask, threshold, date, confirmed, previous_ds, firstdate)
 
     #Add today's confirmed changes to previous confirmed changes
     confirmed[:,:] += confirmed_today[:,:] 
@@ -363,6 +377,7 @@ def do_monitor(date, result_location, image_ds, image_ar, cfg,
     out['highprob'] = highprob 
     out['confirmed_today'] = confirmed_today
     out['confirmed'] = confirmed 
+    out['firstdate'] = firstdate
     np.savez(consec_file, **out)
     return out 
 
