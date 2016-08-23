@@ -26,7 +26,7 @@ WARN_ON_EMPTY = False
 @click.command(
     short_help='Map change found by YATSM algorithm over time period')
 @click.argument('map_type', metavar='<map_type>',
-                type=click.Choice(['first', 'last', 'num', 'class']))
+                type=click.Choice(['first', 'last', 'num', 'status', 'class']))
 @options.arg_date(var='start_date', metavar='<start_date>')
 @options.arg_date(var='end_date', metavar='<end_date>')
 @options.arg_output
@@ -91,6 +91,12 @@ def changemap(ctx, map_type, start_date, end_date, output,
             start_date, end_date, result, image_ds,
             ndv=ndv, pattern=_result_record
         )
+    elif map_type == 'status': 
+        changemap  = get_changestatus(
+            start_date, end_date, result, image_ds,
+            first=map_type == 'first',
+            ndv=ndv, pattern=_result_record
+        )
 
         band_names = ['NumChanges_s{s}-e{e}'.format(s=start_txt, e=end_txt)]
         write_output(changemap, output, image_ds, gdal_frmt, ndv,
@@ -147,6 +153,53 @@ def get_magnitude_indices(results):
         return np.nonzero(np.any(rec_array[changed]['magnitude'] != 0))[0]
 
 
+        changemap  = get_changestatus(
+            start_date, end_date, result, image_ds,
+            first=map_type == 'first',
+            ndv=ndv, pattern=_result_record
+        )
+def get_changestatus(start, end, result_location, image_ds,
+                      first=False, ndv=-9999, pattern=_result_record):
+    """ Output raster with status of change or not change
+
+    Args:
+      start (int): Ordinal date for start of map records
+      end (int): Ordinal date for end of map records
+      result_location (str): Location of results
+      image_ds (gdal.Dataset): Example dataset
+      first (bool): Use first change instead of last
+      ndv (int, optional): NoDataValue
+      pattern (str, optional): filename pattern of saved record results
+
+    Returns:
+      tuple: A 2D np.ndarray array containing the 'change status' between the
+        start and end date. 
+	The change status corresponds to: 
+	0. No change and no postprocessing change
+	1. Change from CCDC only. 
+	2. No change from CCDC, but change from CUSUM test.
+	3. CCDC change, but Chow postprocessing step removed change.
+	4. Change from CCDC, then removed by Chow, then put back by CUSUM.
+
+    """
+    # Find results
+    records = find_results(result_location, pattern)
+
+    logger.debug('Allocating memory...')
+    statusmap = np.ones((image_ds.RasterYSize, image_ds.RasterXSize),
+                      dtype=np.int32) * int(ndv)
+
+    logger.debug('Processing results')
+    for a, rec in iter_records(records):
+        index = np.where((rec['break'] >= start) &
+                         (rec['break'] <= end))[0]
+        if first:
+            _, _index = np.unique(rec['px'][index], return_index=True)
+            index = index[_index]
+        if index.shape[0] != 0:
+            statusmap[rec['py'][index], rec['px'][index]] = \
+                    rec['status'][index]
+    return statusmap
 
 # MAPPING FUNCTIONS
 def get_datechangemap(start, end, result_location, image_ds, detect,

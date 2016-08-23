@@ -25,11 +25,6 @@ from yatsm import _cyprep as cyprep
 from yatsm.utils import csvfile_to_dataframe, get_image_IDs
 from yatsm.reader import read_pixel_timeseries
 from yatsm.regression.transforms import harm  # noqa
-from rpy2 import robjects as ro
-from rpy2.robjects.packages import importr
-import rpy2.robjects.numpy2ri
-rpy2.robjects.numpy2ri.activate()
-Rstats = importr('stats')
 
 avail_plots = ['TS', 'DOY', 'VAL']
 plot_styles = []
@@ -127,9 +122,6 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
     Y = np.delete(Y, idx_mask, axis=0)[:, valid]
     X = X[valid, :]
     dates = np.array([dt.datetime.fromordinal(d) for d in df['date'][valid]])
-    #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/dates_5287_5512.npy', dates)
-    #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/x_5287_5512.npy', X)
-    #np.save('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/y_5287_5512.npy', Y)
 
     # Plot before fitting
    # with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
@@ -158,7 +150,12 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
     yatsm.px = px
     yatsm.py = py
     yatsm.fit(X, Y, np.asarray(df['date'][valid]))
-
+#    yatsm.record = postprocess.commission_test(
+#                   yatsm, cfg['YATSM']['commission_alpha'])
+  
+#    import pdb; pdb.set_trace()
+    yatsm.record = postprocess.omission_test(
+                   yatsm, cfg['YATSM']['omission_alpha'], 'ALL')
     # Plot after predictions
     with plt.xkcd() if style == 'xkcd' else mpl.style.context(style):
         for _plot in plot:
@@ -174,10 +171,7 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
 
             if ylim:
                 plt.ylim(ylim)
-	        #plt.xlim((2005,2010))
-#            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
-	    hfont = {'fontname': 'Liberation Sans'}
-            ax1.set_ylabel('Landsat TM/ETM Band {b}'.format(b=band + 1), fontsize=20, **hfont)
+            plt.title('Timeseries: px={px} py={py}'.format(px=px, py=py))
 
             plot_results(ax1, band, cfg['YATSM'], yatsm, plot_type=_plot)
 
@@ -185,50 +179,12 @@ def pixel(ctx, config, px, py, band, plot, ylim, style, cmap,
                 IPython_embed()
 
 
-            radx=[date(2007, 1, 29), date(2007,8, 8), date(2007,11,11), date(2007,12,16), date(2008, 3, 18), date(2009, 2, 3), date(2009, 12, 22)]
-	    radyDN=[.259, .213, .229, .319, .201, .175, .133]
-            inc = [.2718, .2841, .2753, .281, .2811, .2759, .2667]
-	    sigma=(np.array(radyDN))*(np.array(inc))
-	    #rady=[.259, .213, .229, .319, .201, .175, .133]
-            rady = 10*np.log10(sigma)
-#	    rady = [(10 * (np.log10(x.astype(float)**2)) + (-83)) for x in np.array(radyDN)]
-            #rady = [(10 * np.log10((x/1000).astype(float)*(x/1000).astype(float)) + (-83)) for x in radyDN]
-	    x2 = np.array([dt.datetime.toordinal(d) for d in radx])
-#	    import pdb; pdb.set_trace()
-	    s = Rstats.smooth_spline(x2, np.array(rady), spar=1)
-	    xs = np.linspace(x2.min(), x2.max(), np.shape(x2)[0])
-	    ys_ob = Rstats.predict(s,xs)
-            ys = np.array(ys_ob)
-
-	    ax2 = ax1.twinx()
-	    ax2.set_axis_bgcolor('white')
-            ax2.scatter(radx, rady, c='r', marker='^', edgecolors='black', s=45, )
-            ax2.set_ylabel('Backscatter (db)')
-            ax1.set_ylim(750, 2250)
-            ax2.set_ylim(-20, -5)
-	    ax2.plot(ys[0,:], ys[1,:], linestyle='dashed', c='r', label='PALSAR Spline Fit')
-	    ax2.yaxis.label.set_size(15)
-	    ax1.xaxis.label.set_size(15)
-	    ax1.yaxis.label.set_size(15)
-	    plt.xlim((date(2005,1,1),date(2010,2,1)))
-	    lines, labels = ax1.get_legend_handles_labels()
-	    lines2, labels2 = ax2.get_legend_handles_labels()
-	    #legend = ax2.legend(lines + lines2, labels + labels2, loc=9, prop={'size':14})
-	    #legend.get_frame().set_facecolor('white')
-	    #legend.get_frame().set_edgecolor('black')
-#	    ax1.grid(b=True)
-#	    ax2.grid(b=True)
-	    fig.set_size_inches(11, 3, forward=True)
-            plt.tight_layout()
-            ax1.tick_params(labelsize=12)
-            ax2.tick_params(labelsize=12)
-	    plt.savefig('/projectnb/landsat/users/bullocke/Thailand/Proposal/Landsat/YATSM_Files/examples/combined_ts_adjusted_legend.png')
             plt.show()
 
 
 def plot_TS(dates, y):
     # Plot data
-    plt.scatter(dates, y, c='k', marker='o', edgecolors='black', s=35)
+    plt.scatter(dates, y, c='k', marker='o',  s=35)
     plt.xlabel('Date')
     hfont = {'fontname':'Liberation Sans'}
     fig = plt.figure()
@@ -303,7 +259,7 @@ def plot_results(ax1, band, yatsm_config, yatsm_model, plot_type='TS'):
 
             label = 'Model {i} - {yr}'.format(i=i, yr=yr_mid)
 
-        ax1.plot(mx_date, my, lw=4, label=label, c='black')
+        ax1.plot(mx_date, my, lw=4, label=label)
         #plt.legend()
 
 

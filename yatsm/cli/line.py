@@ -145,8 +145,9 @@ def line(ctx, config, job_number, total_jobs,
             _Y = Y.take(col, axis=2)
             # Mask
             idx_mask = cfg['dataset']['mask_band'] - 1
-            view_band = cfg['NRT']['view_angle_band'] - 1
-	    view_thresh = cfg['NRT']['view_angle_threshold'] * 100 
+	    if 'NRT' in cfg:
+                view_band = cfg['NRT']['view_angle_band'] - 1
+	        view_thresh = cfg['NRT']['view_angle_threshold'] * 100 
 
             valid = cyprep.get_valid_mask(
                 _Y,
@@ -180,12 +181,20 @@ def line(ctx, config, job_number, total_jobs,
 
             #if yatsm.record is None:
             #    continue
-
             # Postprocess
             if cfg['YATSM']['commission_alpha']:
                 yatsm.record = postprocess.commission_test(
                     yatsm, cfg['YATSM']['commission_alpha'])
 
+	    #Check once if it's in config file, then if it is desired
+	    if 'omission_alpha' in cfg['YATSM']:
+		if cfg['YATSM']['omit_any']: 
+		    omit_decision = 'ANY'
+		else:
+		    omit_decision = 'ALL' 
+		if cfg['YATSM']['omission_alpha']:
+                    yatsm.record = postprocess.omission_test(
+                                   yatsm, cfg['YATSM']['omission_alpha'], omit_decision)
             for prefix, lm in zip(cfg['YATSM']['refit']['prefix'],
                                   cfg['YATSM']['refit']['prediction_object']):
                 yatsm.record = postprocess.refit_record(yatsm, prefix, lm,
@@ -197,6 +206,7 @@ def line(ctx, config, job_number, total_jobs,
                     year_interval=cfg['phenology']['year_interval'],
                     q_min=cfg['phenology']['q_min'],
                     q_max=cfg['phenology']['q_max'])
+	    #Do omission test here
             if yatsm.record is not None:
             	output.extend(yatsm.record)
 

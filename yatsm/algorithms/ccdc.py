@@ -214,10 +214,6 @@ class CCDCesque(YATSM):
         if self.record[-1]['start'] == 0 and self.record[-1]['end'] == 0:
             self.record = self.record[:-1]
 
-	#To do: Make this correspond with the actual status at end of time series instead of resetting
-        self.record['status'] = 0
-	self.record['probability'] = 0
-	self.record['consec'] = 0
         return self.record
 
     def reset(self):
@@ -431,13 +427,13 @@ class CCDCesque(YATSM):
 
         # Check for scores above critical value
         mag = np.linalg.norm(np.abs(scores), axis=1)
-        #mag2 = np.where(mag > self.threshold)
+
         if np.all(mag > self.threshold):
             logger.debug('CHANGE DETECTED')
 
             # Record break date
             self.record[self.n_record]['break'] = self.dates[self.here + 1]
-	#    import pdb; pdb.set_trace()
+
 	    if ((self.here+self.consecutive) - self.dates.shape[0]) <= 0:
                 self.record[self.n_record]['detect'] = self.dates[self.here + self.consecutive]
 	    else:
@@ -445,6 +441,8 @@ class CCDCesque(YATSM):
             # Record magnitude of difference for tested indices
             self.record[self.n_record]['magnitude'][self.test_indices] = \
                 np.mean(scores, axis=0)
+	    #Indicate 1 for change from CCDC test
+            self.record[self.n_record]['status'] = 1
 
             try:
                 self.record = np.append(self.record, self.record_template)
