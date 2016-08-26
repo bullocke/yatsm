@@ -254,3 +254,14 @@ def is_integer(s):
         return True
     except:
         return False
+
+def get_matlab_name(dataset, line):
+    """ Returns MATLAB saved file name for line """
+ 
+    dir = dataset['mat_output']
+    if dir[-1] != '/':
+	dir = dir + '/' 
+    prefix = 'record_change'
+    ext = '.mat'
+    filename = dir + prefix + str(line) + ext
+    return filename

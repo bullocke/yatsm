@@ -124,7 +124,7 @@ def commission_test(yatsm, alpha=0.10):
 	    m_new['status'] = 3 
 
             # Re-fit models and copy over attributes
-            yatsm.fit_models(yatsm.X[m_r_start:m_r_end, :],
+            yatsm.models = yatsm.fit_models(yatsm.X[m_r_start:m_r_end, :],
                              yatsm.Y[:, m_r_start:m_r_end])
             for i_m, _m in enumerate(yatsm.models):
                 m_new['coef'][:, i_m] = _m.coef
@@ -198,56 +198,56 @@ def omission_test(model, crit=0.01, behavior='ANY', indices=None):
         _Y = model.Y[:, index]
 	breakindex = np.zeros(len(indices))
 
-	combine_bands = True
-	if combine_bands: 
-	    residuals = np.zeros((len(_X[:,1]),len(indices)))
-	    scaledresiduals = np.zeros((len(_X[:,1]),len(indices)))
-	    for i_b, b in enumerate(indices):
-                ols = sm.OLS(_Y[b, :], _X).fit()
-                residuals[:,i_b] = ols.resid
-                scaledresiduals[:,i_b] = residuals[:,i_b] / np.sqrt(((residuals[:,i_b]) ** 2).mean())
-	    resid_combined = np.linalg.norm(scaledresiduals,axis=1)
-            test = sm.stats.diagnostic.breaks_cusumolsresid(
-                resid_combined, _X.shape[1])
-	    test_stats = sm.stats.diagnostic.recursive_olsresiduals(
-                ols, _X.shape[1])
-            redo_models = True
-#	    import pdb; pdb.set_trace()
-#        for i_b, b in enumerate(indices):
-            # Create OLS regression
-#            ols = sm.OLS(_Y[b, :], _X).fit()
-            # Perform CUMSUM test on residuals
+#	combine_bands = True
+#	if combine_bands: 
+#	    residuals = np.zeros((len(_X[:,1]),len(indices)))
+#	    scaledresiduals = np.zeros((len(_X[:,1]),len(indices)))
+#	    for i_b, b in enumerate(indices):
+#                ols = sm.OLS(_Y[b, :], _X).fit()
+#                residuals[:,i_b] = ols.resid
+#                scaledresiduals[:,i_b] = residuals[:,i_b] / np.sqrt(((residuals[:,i_b]) ** 2).mean())
+#	    resid_combined = np.linalg.norm(scaledresiduals,axis=1)
 #            test = sm.stats.diagnostic.breaks_cusumolsresid(
-#                ols.resid, _X.shape[1])
-#	    import pdb; pdb.set_trace()
+#                resid_combined, _X.shape[1])
 #	    test_stats = sm.stats.diagnostic.recursive_olsresiduals(
 #                ols, _X.shape[1])
-#            if test[1] < crit:
+#            redo_models = True
+
+
+        for i_b, b in enumerate(indices):
+            # Create OLS regression
+            ols = sm.OLS(_Y[b, :], _X).fit()
+            # Perform CUMSUM test on residuals
+            test = sm.stats.diagnostic.breaks_cusumolsresid(
+                ols.resid, _X.shape[1])
+#	    import pdb; pdb.set_trace()
+	    test_stats = sm.stats.diagnostic.recursive_olsresiduals(
+                ols, _X.shape[1])
+            if test[1] < crit:
 	 #       print 'missed break' 
- #               omission[i, i_b] = True
- #           else:
+                omission[i, i_b] = True
+            else:
 	#	print 'did not miss break' 
-#                omission[i, i_b] = False
-
+                omission[i, i_b] = False
         # Collapse band answers according to `behavior`
-#        if (behavior.lower() == 'any') and (np.any(omission[i,:])):
-#	    redo_models = True
-#        elif (behavior.lower() == 'all') and (np.all(omission[i,:])):
-#	    redo_models = True
-#        else:
-#	    redo_models = False
-#	    models.append(r)
-#
-#        if redo_models: 
-#	    for ind in np.nonzero(omission[i,:])[0]:
-##		breakindex[ind] = find_breakpoints(_Y[b, :], _X, 1,trim=model.min_obs)[0][0]
-#            breakindex = np.min(breakindex[breakindex > 0])
+        if (behavior.lower() == 'any') and (np.any(omission[i,:])):
+	    redo_models = True
+        elif (behavior.lower() == 'all') and (np.all(omission[i,:])):
+	    redo_models = True
+        else:
+	    redo_models = False
+	    models.append(r)
 
-	    if test[1] < crit:
-		breakindex = find_breakpoints(resid_combined, _X, 1, trim=model.min_obs)[0][0]
-	    else:
-		models.append(r)
-		continue
+        if redo_models: 
+	    for ind in np.nonzero(omission[i,:])[0]:
+		breakindex[ind] = find_breakpoints(_Y[b, :], _X, 1,trim=model.min_obs)[0][0]
+            breakindex = np.min(breakindex[breakindex > 0])
+
+#	    if test[1] < crit:
+#		breakindex = find_breakpoints(resid_combined, _X, 1, trim=model.min_obs)[0][0]
+#	    else:
+#		models.append(r)
+#		continue
 
      	    breakdate = _X[:,1][breakindex]
 

@@ -216,6 +216,36 @@ class CCDCesque(YATSM):
 
         return self.record
 
+    def convert_matlab(self, yatsm, rec_mat, col, line):
+
+        self.n_features = yatsm.X.shape[1]
+        self.n_series = yatsm.Y.shape[0]
+	#Need to convert pixel ID to column
+        all_x=(rec_mat['pos'][0] - rec_mat['pos'][0][0])
+	_px = np.concatenate(all_x[0],axis=0)
+	px = np.where(_px == col)[0]
+	models = []
+	records = rec_mat[0][px]
+	for it, mat in enumerate(records): 
+            m_new = np.copy(self.record_template)[0]
+	    #do stuff
+	    m_new['px'] = col
+	    m_new['py'] = col
+	    m_new['start'] = mat['t_start'][0]
+	    m_new['end'] = mat['t_end'][0]
+	    m_new['break'] = mat['t_break'][0]
+	    #Indicate CCDC change in status attribute
+	    if m_new['break'] > 0:
+		m_new['status'] = 1
+
+	
+	    m_new['coef'] = mat['coefs'][:,0:7]
+	    m_new['rmse'] = mat['rmse'][0:7,0]
+
+	    models.append(m_new)
+
+	return np.array(models)
+
     def reset(self):
         """ Reset state information required for model fittings
         """
