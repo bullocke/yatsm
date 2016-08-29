@@ -8,12 +8,13 @@ import logging
 import numpy as np
 import numpy.lib.recfunctions as nprf
 import scipy.stats
+from scipy.optimize import minimize, minimize_scalar
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from ..regression.diagnostics import rmse
 from ..utils import date2index
 
-logger = logging.getLogger('yatsm')
+#logger = logging.getLogger('yatsm')
 
 
 # POST-PROCESSING
@@ -213,16 +214,16 @@ def omission_test(model, crit=0.01, behavior='ANY', indices=None):
 #                ols, _X.shape[1])
 #            redo_models = True
 
-
+	tst = []
         for i_b, b in enumerate(indices):
             # Create OLS regression
             ols = sm.OLS(_Y[b, :], _X).fit()
             # Perform CUMSUM test on residuals
             test = sm.stats.diagnostic.breaks_cusumolsresid(
                 ols.resid, _X.shape[1])
-#	    import pdb; pdb.set_trace()
 	    test_stats = sm.stats.diagnostic.recursive_olsresiduals(
                 ols, _X.shape[1])
+	    tst.append(test_stats)
             if test[1] < crit:
 	 #       print 'missed break' 
                 omission[i, i_b] = True
@@ -240,23 +241,26 @@ def omission_test(model, crit=0.01, behavior='ANY', indices=None):
 
         if redo_models: 
 	    for ind in np.nonzero(omission[i,:])[0]:
-		breakindex[ind] = find_breakpoints(_Y[b, :], _X, 1,trim=model.min_obs)[0][0]
-            breakindex = np.min(breakindex[breakindex > 0])
+		nobs = _X[:,1].shape[0]
+		max_ind = nobs - model.min_obs  
+		params=(_Y[b,:], _X, nobs, model.min_obs)
+		opt_break = minimize_scalar(opt_breakdetection, bounds=(model.min_obs,max_ind), method='bounded', args=(params,), options={'disp': True, 'maxiter': 100})
+		breakindex[ind] = int(opt_break.x)
 
-#	    if test[1] < crit:
-#		breakindex = find_breakpoints(resid_combined, _X, 1, trim=model.min_obs)[0][0]
-#	    else:
-#		models.append(r)
-#		continue
+		#breakindex[ind] = opt_breakdetection(_Y[b,:], _X, model.min_obs)
+#		breakindex[ind] = find_breakpoints(_Y[b, :], _X, 1,trim=model.min_obs)[0][0]
+#	    import pdb; pdb.set_trace()
+            _breakindex = np.min(breakindex[breakindex > 0])
 
-     	    breakdate = _X[:,1][breakindex]
+
+     	    breakdate = _X[:,1][_breakindex]
 
             m_new_1 = np.copy(model.record_template)[0]
             m_new_2 = np.copy(model.record_template)[0]
 
             m_new_1['start'] = _X[:,1][0]
-            m_new_1['end'] = _X[:,1][breakindex - 1]
-            m_new_1['break'] = _X[:,1][breakindex - 1]
+            m_new_1['end'] = _X[:,1][_breakindex - 1]
+            m_new_1['break'] = _X[:,1][_breakindex - 1]
 	    if r['status'] == 3:
 	        m_new_1['status'] = 4
 	        m_new_2['status'] = 4
@@ -270,8 +274,8 @@ def omission_test(model, crit=0.01, behavior='ANY', indices=None):
 
             #organize indices
             m_1_start = 0
-            m_1_end = breakindex - 1 
-            m_2_start = breakindex
+            m_1_end = _breakindex - 1 
+            m_2_start = _breakindex
             m_2_end = len(_X[:,1]) - 1
 
             # Re-fit models and copy over attributes
@@ -483,4 +487,20 @@ def find_breakpoints(endog, exog, nbreaks, trim=0.15):
     breakpoints = tuple(np.array(breakpoints)-1)
 
     return breakpoints, min_ssr
+
+def opt_breakdetection(i,params):
+    """
+    Function to determine optimum break date in time series given that there is 1 break. 
+    Function minimum corresponds to index of best possible break date. 
+    """
+    x = params[0]
+    y = params[1]
+    nobs = params[2]
+    trim = params[3]
+    m1 = sm.OLS(x[0:i], y[0:i]).fit()
+    m1 = m1.ssr
+    m2 = sm.OLS(x[i:nobs], y[i:nobs]).fit()
+    m2 = m2.ssr
+    combined = m1 + m2
+    return combined
 
