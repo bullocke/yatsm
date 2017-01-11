@@ -13,8 +13,7 @@ from yatsm.cli import options
 from yatsm.config_parser import parse_config_file
 import yatsm._cyprep as cyprep
 from yatsm.errors import TSLengthException
-from yatsm.utils import (get_matlab_name, distribute_jobs, get_output_name, get_image_IDs,
-                         csvfile_to_dataframe)
+from yatsm.utils import (conv_matlab_results, get_matlab_name, distribute_jobs, get_output_name, get_image_IDs, pytomat, csvfile_to_dataframe, get_lines_shape)
 from yatsm.reader import get_image_attribute, read_line
 from yatsm.regression.transforms import harm
 from yatsm.algorithms import ccdc, postprocess
@@ -34,9 +33,12 @@ logger_algo = logging.getLogger('yatsm_algo')
 @options.arg_total_jobs
 @click.option('--verbose-yatsm', is_flag=True,
               help='Show verbose debugging messages in YATSM algorithm')
+@click.option('--convert', is_flag=True,
+              help='Only convert MATLAB results, no postprocessing')
+@click.option('--shapefile', help='Read columns from a shapefile')
 @click.pass_context
 def postprocess_results(ctx, config, job_number, total_jobs,
-         verbose_yatsm):
+         verbose_yatsm, convert, shapefile):
     if verbose_yatsm:
         logger_algo.setLevel(logging.DEBUG)
 
@@ -72,6 +74,9 @@ def postprocess_results(ctx, config, job_number, total_jobs,
 
     # Calculate the lines this job ID works on
     job_lines = distribute_jobs(job_number, total_jobs, nrow)
+    if shapefile:
+	job_lines = get_lines_shape(shapefile)[job_number]
+	job_lines = (job_lines,)
     logger.debug('Responsible for lines: {l}'.format(l=job_lines))
 
     # Calculate X feature input
@@ -97,13 +102,38 @@ def postprocess_results(ctx, config, job_number, total_jobs,
     for line in job_lines:
         out = get_output_name(cfg['dataset'], line)
         mat_in = get_matlab_name(cfg['dataset'], line + 1)  
-
+	mat_out=cfg['dataset']['output'] + '/' + mat_in.split(os.sep)[-1]
+	if convert:
+	    #Note: the mat_out parameter is what is being converted
+	    #This is totally a hack, but the YATSM output in the parameter
+	    #file is output for the re-size, and the matlab input is what
+	    #will be converted
+	    mat_out=cfg['dataset']['mat_output'] + '/' + mat_in.split(os.sep)[-1]
+	    if not os.path.isfile(mat_out):
+		continue 
+	    rec=conv_matlab_results(mat_out, ncol, nrow)
+            np.savez(out,
+                 version=__version__,
+                 record=rec,
+                 **{k: v for k, v in md.iteritems()})
+	    continue 
+	
 	if not os.path.isfile(mat_in):
 	    continue #TODO warn the user
         
+	if os.path.isfile(out):
+	    continue 
 
         #Read in matlab result. This will have to be scipy read
-        rec_mat = sio.loadmat(mat_in)['rec_cg']
+        rec_mat_load = sio.loadmat(mat_in)
+	rec_mat = rec_mat_load['rec_cg']
+	mat_conv = []
+        mat_out_dict={}
+        mat_out_dict['__version__'] = rec_mat_load['__version__']
+        mat_out_dict['__header__'] = rec_mat_load['__header__']
+	mat_out_dict['__globals__'] = rec_mat_load['__globals__']
+
+
         if len(rec_mat[0]['t_start'][0]) == 0:
 	    continue #is there a better way to check this? TODO
 
@@ -139,32 +169,55 @@ def postprocess_results(ctx, config, job_number, total_jobs,
 	    yatsm.dates = _dates
             # Maybe screen something here #TODO
 
-	    #TODO: Convert format
-            yatsm.record = yatsm.convert_matlab(yatsm, rec_mat, col, line)
+            yatsm.record, pos = yatsm.convert_matlab(yatsm, rec_mat, col, line, ncol, nrow)
 
 
             if yatsm.record is None or len(yatsm.record) == 0:
                 continue
-
             # Postprocess
-            if cfg['YATSM']['commission_alpha']:
+	    if cfg['YATSM']['commis_crit']: 
+	        commis_decision = cfg['YATSM']['commis_crit']
+	    else:
+	    	commis_decision = 'collapse' 
+	    if cfg['YATSM']['omit_crit']: 
+	        omit_decision = cfg['YATSM']['omit_crit']
+	    else:
+		omit_decision = 'collapse' 
+
+	    try:
+	        priority = cfg['YATSM']['posp_priority']
+	    except:
+		priority = 'None'
+	    if priority.lower() == 'omis':
+                yatsm.record = postprocess.omission_test(
+                               yatsm, cfg['YATSM']['omission_alpha'], 
+		     	       omit_decision)
                 yatsm.record = postprocess.commission_test(
-                    yatsm, cfg['YATSM']['commission_alpha'])
+                               yatsm, cfg['YATSM']['commission_alpha'],
+		     	       commis_decision)
+	    elif priority.lower() == 'commis':
+                yatsm.record = postprocess.commission_test(
+                               yatsm, cfg['YATSM']['commission_alpha'],
+		  	       commis_decision)
+                yatsm.record = postprocess.omission_test(
+                               yatsm, cfg['YATSM']['omission_alpha'], 
+			       omit_decision)
+            elif cfg['YATSM']['commission_alpha']:
+                yatsm.record = postprocess.commission_test(
+                yatsm, cfg['YATSM']['commission_alpha'],commis_decision)
 
 	    #Check once if it's in config file, then if it is desired
-	    if 'omission_alpha' in cfg['YATSM']:
-		if cfg['YATSM']['omit_any']: 
-		    omit_decision = 'ANY'
-		else:
-		    omit_decision = 'ALL' 
-		if cfg['YATSM']['omission_alpha']:
-                    yatsm.record = postprocess.omission_test(
-                                   yatsm, cfg['YATSM']['omission_alpha'], omit_decision)
+	    elif cfg['YATSM']['omission_alpha']:
+                yatsm.record = postprocess.omission_test(
+                               yatsm, cfg['YATSM']['omission_alpha'], 
+			       omit_decision)
 
+	    mat_conv = pytomat(mat_conv, yatsm, yatsm.record, rec_mat, pos)
             if yatsm.record is not None:
             	output.extend(yatsm.record)
-
+        mat_out_dict['rec_cg'] = np.swapaxes(mat_conv,0,1)
         logger.debug('    Saving YATSM output to %s' % out)
+	sio.savemat(mat_out, mat_out_dict)
         np.savez(out,
                  version=__version__,
                  record=np.array(output),
