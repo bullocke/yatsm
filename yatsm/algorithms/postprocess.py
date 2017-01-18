@@ -26,7 +26,7 @@ logger = logging.getLogger('yatsm')
 plt.style.use('ggplot')
 
 
-def do_postprocess.py(yatsm):
+def do_postprocess(yatsm):
     """Master function for postprocessing"""
     #TODO
     return yatsm
@@ -66,6 +66,7 @@ def do_chowda(yatsm, m_1_start, m_1_end,
     m_2_rss = np.zeros(yatsm.test_indices.size)
     m_r_rss = np.zeros(yatsm.test_indices.size)
 
+    #Get sum of squared residuals
     for i_b, b in enumerate(yatsm.test_indices):
         m_1_rss[i_b] = np.linalg.lstsq(yatsm.X[m_1_start:m_1_end, :],
                                        yatsm.Y[b, m_1_start:m_1_end])[1]
@@ -73,14 +74,13 @@ def do_chowda(yatsm, m_1_start, m_1_end,
                                        yatsm.Y[b, m_2_start:m_2_end])[1]
         m_r_rss[i_b] = np.linalg.lstsq(yatsm.X[m_r_start:m_r_end, :],
                                        yatsm.Y[b, m_r_start:m_r_end])[1]
+	#Calculate F stat for band
         F_band = (((m_r_rss[i_b] - (m_1_rss[i_b] + m_2_rss[i_b])) / k) 
 		 / ((m_1_rss[i_b] + m_2_rss[i_b]) / (n - 2 * k)))
         F_stats.append(F_band)
 
     #Get weights for the mean based on average r^2 across bands
     weights = get_weights(yatsm)
-
-    behavior = 'weighted_fmean' #TODO: Parameterize?  
 
     if behavior == 'collapse':
 	""" Collapse: Take the mean (un-weighted) for each variable in the 
@@ -134,8 +134,7 @@ def w_av(data, weights):
 def get_weights(yatsm):
     """ Get weights based on average coefficient of 
     determination between bands """
-    weights = 1 - 
-	      (np.sum((np.corrcoef(yatsm.Y[yatsm.test_indices]))**2,axis=0) / 
+    weights = 1 - (np.sum((np.corrcoef(yatsm.Y[yatsm.test_indices]))**2,axis=0) / 
 	      len(yatsm.test_indices))
     return weights
 
@@ -202,6 +201,7 @@ def commission_test(yatsm, alpha=0.10,behavior="collapse"):
 			m_r_end, models, behavior, k,n, 
 			F_crit)
 
+	#Other methods, for testing purposes only
         elif commission_method == 'MANOVA':
 	    #Ignore. Testing purposes only
 	    reject = do_manova(
@@ -281,8 +281,8 @@ def omission_test(model, crit=0.01, behavior='ANY', dates=None, ylim=None, indic
 
     """
     if behavior.lower() not in ['any', 'all', 'mode','mean']:
-        raise ValueError('`behavior` must be "any" , "mode", 
-			 "mean", or "all"')
+        raise ValueError('`behavior` must be "any" , "mode" , ' 
+			 ' "mean" , or "all"')
 
     if not indices:
         indices = model.test_indices
@@ -330,6 +330,7 @@ def omission_test(model, crit=0.01, behavior='ANY', dates=None, ylim=None, indic
                 omission[i, i_b] = True
             else:
                 omission[i, i_b] = False
+
         # Collapse band answers according to `behavior`
 	if (behavior.lower() == 'mean') and (np.mean(test) < crit):
 	    redo_models = True
