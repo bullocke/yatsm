@@ -3,7 +3,7 @@ from datetime import datetime as dt
 from itertools import izip
 import logging
 import os
-
+import sys
 import click
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,17 +44,27 @@ if hasattr(plt, 'style') and 'ggplot' in plt.style.available:
               help='Random number generator seed')
 @click.option('--plot', is_flag=True, help='Show diagnostic plots')
 @click.option('--modis', is_flag=True, help='Use only MODIS bands 1-3')
+@click.option('--disturbance', is_flag=True, help='Do disturbance classification')
 @click.option('--diagnostics', is_flag=True, help='Run K-Fold diagnostics')
 @click.option('--overwrite', is_flag=True, help='Overwrite output model file')
 @click.pass_context
 def train(ctx, config, classifier_config, model, n_fold, seed,
-          plot, diagnostics, overwrite, modis):
+          plot, disturbance, diagnostics, overwrite, modis):
     """
     Train a classifier from `scikit-learn` on YATSM output and save result to
     file <model>. Dataset configuration is specified by <yatsm_config> and
     classifier and classifier parameters are specified by <classifier_config>.
     """
     # Setup
+    #Check if you want to classify the disturbance
+    
+    if disturbance:
+	train_disturbance(config, classifier_config, model, n_fold, seed,
+			  plot, diagnostics, overwrite)
+	sys.exit()
+
+
+
     if not model.endswith('.pkl'):
         model += '.pkl'
     if os.path.isfile(model) and not overwrite:
@@ -128,6 +138,7 @@ def train(ctx, config, classifier_config, model, n_fold, seed,
     # Serialize algorithm to file
     logger.info('Pickling classifier with sklearn.externals.joblib')
     joblib.dump(algo, model, compress=3)
+#    joblib.dump(algo, model)
 
     # Diagnostics
     if diagnostics:
@@ -262,15 +273,16 @@ def get_training_inputs(cfg, modis, exit_on_missing=False):
 
         # Extract coefficients with intercept term rescaled
 	#remove [:,0:2] unless doing MODIS
+	if 'coef' not in rec.dtype.names:
+	    continue
 	coef = rec[i]['coef'][0, :]
+
 	if modis:
             coef = coef[:,[0]]
         coef[0, :] = (coef[0, :] +
                       coef[1, :] * (rec[i]['start'] + rec[i]['end']) / 2.0)
 
-#	import pdb; pdb.set_trace()
 	if modis:
-#	    import pdb; pdb.set_trace()
             X.append(np.concatenate((coef.reshape(coef.size), rec[i]['rmse'][[0],[0]])))
 	else:
             X.append(np.concatenate((coef.reshape(coef.size), rec[i]['rmse'][0])))
@@ -339,3 +351,201 @@ def algo_diagnostics(cfg, X, y,
         logger.info(algo.feature_importances_)
         if make_plots:
             plots.plot_feature_importance(algo, cfg)
+
+
+def train_disturbance(config, classifier_config, model, n_fold, seed,
+			  plot, diagnostics, overwrite):
+
+    if seed:
+        np.random.seed(seed)
+
+    # Parse config & algorithm config
+    cfg = parse_config_file(config)
+    algo, algo_cfg = classifiers.cfg_to_algorithm(classifier_config)
+    algo2, algo_cfg2 = classifiers.cfg_to_algorithm(classifier_config)
+
+    #Get number of land cover classes
+    lc_train_img = cfg['classification']['training_image']
+
+	#Training images, classes need to be in matching order
+    img = lc_train_img
+    out_model, out_name = do_lc_train(img, cfg, algo, algo_cfg,
+    				                  model,overwrite)
+        # Serialize algorithm to file
+    logger.info('Pickling classifier with sklearn.externals.joblib')
+    joblib.dump(out_model, model, compress=3)
+
+    # Diagnostics
+    if diagnostics:
+        algo_diagnostics(cfg, X, y, row, col, algo, n_fold, plot)
+
+
+def do_lc_train(training_image, cfg, algo, algo_cfg, model,overwrite):
+
+    """
+    Inputs:
+        a (int): Classification label that exhibits disturbance
+        training_image (str): Location of training image in which band:
+            1: Disturbance label
+            2: Date intersecting model that exhibits disturbance in format %Y%j
+        others: See functions above.
+
+    Returns:
+        algo: Trained algorithm including post-disturbance model coefs as inputs
+        algo2: Trained algorithm without post-disturbance model coefs
+    """
+
+    out_name = model + '_class.pkl'
+
+    if os.path.isfile(out_name) and not overwrite:
+        logger.error('<model> exists and --overwrite was not specified')
+        raise click.Abort()
+
+    if not training_image or not os.path.isfile(training_image):
+        logger.error('Training data image %s does not exist' % training_image)
+        raise click.Abort()
+
+    # Find information from results -- e.g., design info
+    attrs = find_result_attributes(cfg)
+    cfg['YATSM'].update(attrs)
+
+    training_cache = cfg['classification']['cache_training']
+
+    logger.debug('Reading in X/y')
+
+    #TODO
+    t_inputs = get_dist_training_inputs(cfg, training_image)
+
+    X = t_inputs[0]
+    y = t_inputs[1]
+    row = t_inputs[2]
+    col = t_inputs[3]
+    labels = t_inputs[4]
+
+    #Now the inputs w/o the model afterwards
+#    X2 = t_inputs2[0]
+#    y2 = t_inputs2[1]
+#    row2 = t_inputs2[2]
+#    col2 = t_inputs2[3]
+#    labels2 = t_inputs2[4]
+
+    logger.debug('Done reading in X/y')
+
+    #TODO
+    has_cache = False
+    # If cache didn't exist but is specified, create it for first time
+    if not has_cache and training_cache:
+        logger.info('Saving X/y to cache file %s' % training_cache)
+        try:
+            np.savez(training_cache,
+                     X=X, y=y, row=row, col=col, labels=labels)
+        except:
+            logger.error('Could not save X/y to cache file')
+            raise
+
+
+    # Do modeling
+    logger.info('Training classifier')
+    algo.fit(X, y, **algo_cfg.get('fit', {}))
+
+    return algo, out_name
+
+
+def get_dist_training_inputs(cfg, training_image):
+    """ Returns X features and y labels specified in config file
+
+    Args:
+        cfg (dict): YATSM configuration dictionary
+        training_image (str): Location of training image in which band:
+            1: Disturbance label (int)
+            2: Date intersecting model that exhibits disturbance in format %Y%j
+
+    Returns:
+        t_inputs (list): input features for model using next model's coefficients
+        t_inputs2 (list): the same as t_inputs, but without next model's coefficients
+        each t_input contains:
+            X (np.ndarray): matrix of feature inputs for each training data sample
+            y (np.ndarray): array of labeled training data samples
+            row (np.ndarray): row pixel locations of `y`
+            col (np.ndarray): column pixel locations of `y`
+            labels (np.ndarraY): label of `y` if found, else None
+
+    """
+    # Find and parse training data
+    img_open = gdal.Open(training_image)
+    roi = img_open.GetRasterBand(1).ReadAsArray()
+    dates = img_open.GetRasterBand(2).ReadAsArray()
+
+    logger.debug('Read in training data')
+    labels = None
+
+    # Determine start and end dates of training sample relevance
+
+    # Loop through samples in ROI extracting features
+    mask_values = cfg['classification']['roi_mask_values']
+    mask = ~np.in1d(roi, mask_values).reshape(roi.shape)
+    row, col = np.where(mask)
+    y = roi[row, col]
+
+    X = []
+    out_y = []
+    out_row = []
+    out_col = []
+
+    _row_previous = None
+    for _row, _col, _y in izip(row, col, y):
+        # Load result
+        if _row != _row_previous:
+            output_name = utils.get_output_name(cfg['dataset'], _row)
+            try:
+                rec = np.load(output_name)['record']
+                _row_previous = _row
+            except:
+                logger.error('Could not open saved result file %s' %
+                             output_name)
+                if exit_on_missing:
+                    raise
+                else:
+                    continue
+
+        _training_date = dates[_row, _col]
+	training_date = dt.strptime(str(int(_training_date)),cfg['classification']['training_date_format']).toordinal()
+        # Find intersecting time segment
+        #TODO: how to parse training date?
+	
+        i = np.where((rec['start'] < training_date) &
+                     (rec['end'] > training_date) &
+                     (rec['px'] == _col) & (rec['break'] > 0))[0]
+
+        if i.size == 0:
+            logger.debug('Could not find model for label %i at x/y %i/%i' %
+                         (_y, _col, _row))
+            continue
+        elif i.size > 1:
+            raise TrainingDataException(
+                'Found more than one valid model for label %i at x/y %i/%i' %
+                (_y, _col, _row))
+
+        # Extract coefficients with intercept term rescaled
+	#remove [:,0:2] unless doing MODIS
+	if 'coef' not in rec.dtype.names:
+	    continue
+	coef = rec[i]['coef'][0, :]
+	magnitude = rec[i]['magnitude'][0,cfg['CCDCesque']['test_indices']]
+	length = rec[i]['break'] - rec[i]['start']
+
+
+        X.append(np.concatenate((coef.reshape(coef.size), magnitude.reshape(magnitude.size),length)))
+        out_y.append(_y)
+        out_row.append(_row)
+        out_col.append(_col)
+
+    out_row = np.array(out_row)
+    out_col = np.array(out_col)
+
+    if labels is not None:
+        labels = labels[out_row, out_col]
+
+    t_inputs = [np.array(X), np.array(out_y), out_row, out_col, labels]
+
+    return t_inputs

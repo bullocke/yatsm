@@ -27,10 +27,11 @@ logger = logging.getLogger('yatsm')
 @click.option('--modis', is_flag=True, help='Use only MODIS bands 1-3')
 @options.arg_job_number
 @options.arg_total_jobs
+@click.option('--disturbance', is_flag=True, help='Do disturbance classification')
 @click.option('--resume', is_flag=True,
               help="Resume classification (don't overwrite)")
 @click.pass_context
-def classify(ctx, config, algo, job_number, total_jobs, resume, modis):
+def classify(ctx, config, algo, job_number, total_jobs, resume, modis, disturbance):
     cfg = parse_config_file(config)
 
     df = csvfile_to_dataframe(cfg['dataset']['input_file'],
@@ -50,14 +51,18 @@ def classify(ctx, config, algo, job_number, total_jobs, resume, modis):
         if not os.path.exists(filename):
             logger.warning('No model result found for line {l} '
                            '(file {f})'.format(l=job_line, f=filename))
-            pass
+            continue 
 
         if resume and try_resume(filename):
             logger.debug('Already processed line {l}'.format(l=job_line))
             continue
 
         logger.debug('Classifying line {l}'.format(l=job_line))
-        classify_line(filename, classifier, modis)
+
+	if disturbance:
+	    classify_line_dist(filename, classifier, modis)
+	else:
+            classify_line(filename, classifier, modis)
 
     logger.debug('Completed {n} lines in {m} minutes'.format(
         n=len(job_lines),
@@ -132,6 +137,8 @@ def classify_line(filename, classifier, modis):
         # e.g., if the number of classes changed
         if 'class' in rec.dtype.names and 'class_proba' in rec.dtype.names:
             rec = nprfn.drop_fields(rec, ['class', 'class_proba'])
+        elif 'class' in rec.dtype.names:
+            rec = nprfn.drop_fields(rec, ['class'])
         rec = nprfn.merge_arrays((rec, classified), flatten=True)
 
     # Create dict for re-saving `npz` file (only way to append)
@@ -139,6 +146,70 @@ def classify_line(filename, classifier, modis):
     for k, v in z.iteritems():
         out[k] = v
     out['classes'] = classes
+    out['record'] = rec
+
+    np.savez(filename, **out)
+
+def classify_line_dist(filename, classifier, modis):
+    """ Use `classifier` to classify disturbance data stored in `filename`
+    Args:
+      filename (str): filename of stored results
+      classifier (sklearn classifier): pre-trained classifier
+    """
+    z = np.load(filename)
+    _rec = z['record']
+
+    if _rec.shape[0] == 0:
+        logger.debug('No records in {f}. Continuing'.format(f=filename))
+        return
+
+    rec = _rec
+
+    if rec.shape[0] == 0:
+        logger.debug('No records in {f}. Continuing'.format(f=filename))
+        return
+    # Rescale intercept term
+    coef = rec['coef'].copy()  # copy so we don't transform npz coef
+
+    coef[:, 0, :] = (coef[:, 0, :] + coef[:, 1, :] *
+                     ((rec['start'] + rec['end']) / 2.0)[:, np.newaxis])
+
+    length = rec['end'] - rec['start']
+    # Include RMSE for full X matrix
+    newdim = (coef.shape[0], coef.shape[1] * coef.shape[2])
+    X = np.hstack((coef.reshape(newdim), rec['magnitude'][:,z['test_indices']], length.reshape(len(length), 1)))
+
+    # Create output and classify
+    classes = classifier.classes_
+    classified = np.zeros(rec.shape[0], dtype=[
+        ('dclass', 'u2'),
+        ('dclass_proba', 'float32', classes.size)
+    ])
+    classified['dclass'] = classifier.predict(X)
+    classified['dclass_proba'] = classifier.predict_proba(X)
+
+    # Replace with new classification if exists, or add by merging
+    if ('dclass' in rec.dtype.names and 'dclass_proba' in rec.dtype.names and
+            rec['dclass_proba'].shape[1] == classes.size):
+        rec['dclass'] = classified['dclass']
+        rec['dclass_proba'] = classified['dclass_proba']
+    else:
+        # Drop incompatible classified results if needed
+        # e.g., if the number of classes changed
+        if 'dclass' in rec.dtype.names and 'dclass_proba' in rec.dtype.names:
+            rec = nprfn.drop_fields(rec, ['dclass', 'dclass_proba'])
+        elif 'dclass' in rec.dtype.names:
+            rec = nprfn.drop_fields(rec, ['dclass'])
+        rec = nprfn.merge_arrays((rec, classified), flatten=True)
+
+    # Create dict for re-saving `npz` file (only way to append)
+    out = {}
+    for k, v in z.iteritems():
+        out[k] = v
+
+    rec[_rec['break'] == 0]['dclass'] = 0
+
+    out['dclasses'] = classes
     out['record'] = rec
 
     np.savez(filename, **out)
