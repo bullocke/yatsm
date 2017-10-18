@@ -85,6 +85,7 @@ entry_points = '''
     monitor=yatsm.cli.monitor:monitor
     monitor_map=yatsm.cli.monitor_map:monitor_map
     process_modis=yatsm.process_modis:process_modis
+    postprocess_results=yatsm.cli.postprocess_results:postprocess_results
 '''
 
 setup_dict = dict(
