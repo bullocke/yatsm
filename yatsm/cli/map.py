@@ -27,6 +27,7 @@ _before_qa = 1
 
 # Filters for results
 _result_record = 'yatsm_r*'
+#_result_record = 'record_change*'
 # number of days in year
 _days = 365.25
 w = 2 * np.pi / _days
@@ -36,7 +37,7 @@ WARN_ON_EMPTY = False
 
 @click.command(short_help='Make map of YATSM output for a given date')
 @click.argument('map_type', metavar='<map_type>',
-                type=click.Choice(['coef', 'predict', 'class', 'pheno', 'class']))
+                type=click.Choice(['coef', 'predict', 'class', 'pheno', 'class', 'length', 'aftercoef']))
 @options.arg_date()
 @options.arg_output
 @options.opt_rootdir
@@ -66,6 +67,7 @@ WARN_ON_EMPTY = False
                    'individual coefficient estimates')
 @click.option('--predict-proba', 'predict_proba', is_flag=True,
               help='Include prediction probability band (scaled by 10,000)')
+
 @click.pass_context
 def map(ctx, map_type, date, output,
         root, result, image, date_frmt, ndv, gdal_frmt, warn_on_empty,
@@ -116,6 +118,7 @@ def map(ctx, map_type, date, output,
             pred_proba=predict_proba
         )
     elif map_type == 'coef':
+	band = 'all'
         raster, band_names = get_coefficients(
             date, result, image_ds,
             band, coef,
@@ -124,6 +127,7 @@ def map(ctx, map_type, date, output,
             ndv=ndv
         )
     elif map_type == 'predict':
+	band = 'all'
         raster, band_names = get_prediction(
             date, result, image_ds,
             band,
@@ -136,11 +140,11 @@ def map(ctx, map_type, date, output,
             date, result, image_ds,
             after=after, before=before, qa=qa,
             ndv=ndv)
-    elif map_type == 'class':
-	raster, band_names = get_NRT_class(
+    elif map_type == 'length':
+        raster, band_names = get_length(
             date, result, image_ds,
-            after=after, before=before, qa=qa,
-            ndv=ndv)
+            after=after, before=before, qa=qa
+        )
 
     write_output(raster, output, image_ds,
                  gdal_frmt, ndv, band_names)
@@ -198,7 +202,6 @@ def find_result_attributes(results, bands, coefs, prefix=''):
             continue
         else:
             break
-
     if n_coefs is None or n_bands is None:
         logger.error('Could not determine the number of coefficients or bands')
         raise click.Abort()
@@ -252,8 +255,9 @@ def find_indices(record, date, after=False, before=False):
 
     """
     if before:
-        # Model before, as long as it didn't change
-        index = np.where((record['end'] <= date) & (record['break'] == 0))[0]
+    #    index = np.where((record['end'] <= date) & (record['break'] == 0))[0]
+	#If before but no break is okay
+        index = np.where((record['end'] <= date))[0]
         yield _before_qa, index
 
     if after:
@@ -262,6 +266,7 @@ def find_indices(record, date, after=False, before=False):
         _, _index = np.unique(record['px'][index], return_index=True)
         index = index[_index]
         yield _after_qa, index
+
     # Model intersecting date
     index = np.where((record['start'] <= date) & (record['end'] >= date))[0]
     yield _intersect_qa, index
@@ -318,14 +323,10 @@ def get_classification(date, result_location, image_ds,
             logger.warning('Results in {f} do not have classification labels'
                            .format(f=fname))
             continue
-        if 'class_proba' not in rec.dtype.names and pred_proba:
-            raise ValueError('Results do not have classification prediction'
-                             ' probability values')
 
         for _qa, index in find_indices(rec, date, after=after, before=before):
             if index.shape[0] == 0:
                 continue
-
             raster[rec['py'][index],
                    rec['px'][index], 0] = rec['class'][index]
             if pred_proba:
@@ -334,7 +335,6 @@ def get_classification(date, result_location, image_ds,
                             rec['class_proba'][index].max(axis=1) * 10000
             if qa:
                 raster[rec['py'][index], rec['px'][index], -1] = _qa
-
     return raster, band_names
 
 def get_coefficients(date, result_location, image_ds,
@@ -414,6 +414,7 @@ def get_coefficients(date, result_location, image_ds,
 
     logger.debug('Processing results')
     for rec in iter_records(records, warn_on_empty=WARN_ON_EMPTY):
+	rec=rec[1]
         for _qa, index in find_indices(rec, date, after=after, before=before):
             if index.shape[0] == 0:
                 continue
@@ -444,7 +445,6 @@ def get_coefficients(date, result_location, image_ds,
                     rec[_rmse][index][:, i_bands]
             if qa:
                 raster[rec['py'][index], rec['px'][index], -1] = _qa
-
     return raster, band_names
 
 
@@ -481,7 +481,6 @@ def get_prediction(date, result_location, image_ds,
     # Find result attributes to extract
     i_bands, _, _, _, design, design_info = find_result_attributes(
         records, bands, None, prefix=prefix)
-
     n_bands = len(i_bands)
     band_names = ['Band_{0}'.format(b) for b in range(n_bands)]
     if qa:
@@ -508,6 +507,7 @@ def get_prediction(date, result_location, image_ds,
 
     logger.debug('Processing results')
     for rec in iter_records(records, warn_on_empty=WARN_ON_EMPTY):
+	rec=rec[1]
         for _qa, index in find_indices(rec, date, after=after, before=before):
             if index.shape[0] == 0:
                 continue
@@ -588,4 +588,50 @@ def get_phenology(date, result_location, image_ds,
             if qa:
                 raster[rec['py'][index], rec['px'][index], -1] = _qa
 
+    return raster, band_names
+
+def get_length(date, result_location, image_ds,
+                       after=False, before=False, qa=False,
+                       ndv=0, pattern=_result_record):
+    """ Output raster with model length
+
+    Args:
+        date (int): ordinal date for prediction image
+        result_location (str): Location of the results
+        image_ds (gdal.Dataset): Example dataset
+        after (bool, optional): If date intersects a disturbed period, use next
+            available time segment
+        before (bool, optional): If date does not intersect a model, use
+            previous non-disturbed time segment
+        qa (bool, optional): Add QA flag specifying segment type (intersect,
+            after, or before)
+        ndv (int, optional): NoDataValue
+        pattern (str, optional): filename pattern of saved record results
+
+    Returns:
+        np.ndarray: 2D numpy array containing the classification map for the
+            date specified
+
+    """
+
+    records = find_results(result_location, pattern)
+
+    dtype = np.uint16
+
+    band_names = ['Length']
+
+    logger.debug('Allocating memory...')
+    raster = np.ones((image_ds.RasterYSize, image_ds.RasterXSize, 1),
+                     dtype=dtype) * int(ndv)
+
+    logger.debug('Processing results')
+    for rec, fname in iter_records(records, warn_on_empty=WARN_ON_EMPTY,
+                                   yield_filename=True):
+
+        for _, index in find_indices(rec, date, after=after, before=before):
+            if index.shape[0] == 0:
+                continue
+
+            raster[rec['py'][index],
+                   rec['px'][index], 0] = rec['end'][index] - rec['start'][index]
     return raster, band_names
