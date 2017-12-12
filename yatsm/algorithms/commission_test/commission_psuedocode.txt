@@ -1,0 +1,161 @@
+""" Psuedo code for commission test for YATSM/CCDC """
+
+
+function do_chowda:
+   """ Merge adjacent records based on Boston's version of Chow Tests for nested models
+     Use Chow Test to find false positive, spurious, or unnecessary breaks
+     in the timeseries by comparing the effectiveness of two separate
+     adjacent models with one single model that spans the entire time
+     period."""
+
+    # F statistics across bands
+    F_stats = empty list 
+
+    # Allocate memory outside of loop
+    # m_1_rss: first model to possibly merge
+    m_1_rss = empty numpy array the length of # test bands
+
+    # m_2_rss: second model to possibly merge
+    m_2_rss = empty numpy array the length of # test bands
+
+    # m_r_rss: model spanning entire time period
+    m_r_rss = empty numpy array the length of # test bands
+
+    for band in every test band:
+        m_1_rss[band] = rss from np.linalg.lstsq for time period of m_1_rss
+        m_2_rss[band] = rss from np.linalg.lstsq for time period of m_2_rss
+        m_r_rss[band] = rss from np.linalg.lstsq for time period of m_r_rss
+    
+        F_band = F statistic for Chow test
+
+        # Get correlation weights for collapsing across bands
+        weights = do function "get weights"
+
+    # How to collapse test statistic across bands?
+     
+    ## option one: 'collapse' - put the mean RSS for each band directly into the
+    ## F Test within the Chow Test
+ 
+    ## option two: 'mode': calculate F statistic for each band individual, if
+    ## a majority of them exceed the critical value, reject null hypothesis
+ 
+    ## option three: 'weighted_mean': calculate weighted mean for each rss and
+    ## use the means for the F test
+ 
+    ## option three: 'weighted_fmean': calculate F statistic for each band and
+    ## take the weighted mean to compare to critical value
+ 
+    ## for testing and publication submitted to RSE, option 3 was used. The overall
+    ## impact was rather minimal, however.
+
+    if behavior == 'collapse'
+        F = F statistic using means within the formula
+        if F is above F_crit:
+            reject null hypothesis
+        else:
+            accept null hypothesis
+
+    elif behavior = 'mode':
+        F_over = # bands where F_stat is above F_crit
+        if majority of F_stats exceed threshoold:
+            reject null hypothesis
+        else:
+            accept null hypothesis
+
+    elif behavior = 'weighted_mean':
+        F2 = F statistic using weighted means of rss within formula
+        if F2 > F_crit:
+            reject null hypothesis     
+        else:
+            accept null hypothesis
+
+    elif behavior = 'weighted_fmean':
+        # Get weighted mean of F statistics for all bands
+        F = do function 'w_av'
+        if F > F_crit:
+            reject null hypothesis     
+        else:
+            accept null hypothesis
+    return reject
+
+function w_av
+    return weighted average based on weights variable
+
+function get_weights
+    weights = 1 - average correlation of each band based on Pearson 
+              product-moment correlation coefficients using original spectral time 
+              series
+
+function commission_test:
+     """ Master function for testing whether to merge adjacent models due to incorrect
+     changes detected by CCDC.
+     """
+
+    # Check if there are multiple models to possibly merge
+    if number of models = 1:
+        return model
+
+    k = # of regression coefficients
+
+    models = empty list
+    # models will be filled with yatsm.records after performing commission test
+    # on every break in time series
+
+    merged = False
+
+    # Loop over every model in time series
+    for every model in time series:
+        if the previous models were merged:
+            m_1 = previous model
+        else: 
+            m_1 = current model in loop
+        m_2 = next time sequential model in time series
+
+    # Date indices based on entire time series for all models for current pixel
+    m_1_start = index of date m_1 begins
+    m_1_end = index of date m_1 ends
+    m_2_start = index  of date m_2 begins
+    m_2_end = index of date m_2 ends
+
+    # Restricted start/end: for model covering entire time period
+    m_r_start = index of date m_1 begins
+    m_r_end = index of date m_2 ends
+
+    # check if there are enough observations to fit least squares regression
+    if either model periods <= (k + 2):
+        continue
+
+    n = # observations covering both models
+    F_crit = F test critical value
+
+    for i_b, b in enumerate(model test bands):
+        # Use Chow test to reject/accept null hypothesis
+        # Reject: Keep breaks
+        # Accept: Merge two models
+        reject = do function "do_chowda"
+
+        if reject:
+            # Retain change
+            if these are the first 2 models tested for pixel:
+                append m_1 to models
+            append m_2 to models
+            merged = False
+        else:
+            # Merge models
+            m_new = empty yatsm record template
+
+            if these arent the first two models were testing:
+                delete last model in models
+
+            m_new['start'] = start index of m_1 #first model
+            m_new['end'] = end of m_2 #second model
+            m_new['break'] = break date (if any) for m_2
+
+        yatsm.model = new fitted model based on yatsm parameters
+
+        for each model in yatsm.models:
+            copy coefficients and rmse to model record
+
+        merged = True
+
+    return models as numpy array
