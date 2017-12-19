@@ -14,11 +14,14 @@ def do_chowda(yatsm, m_1_start, m_1_end,
           m_2_start, m_2_end, m_r_start,
           m_r_end, models, behavior,
           k, n, F_crit):
-    """ Merge adjacent records based on Boston's version of Chow Tests for nested models
+    """
+
+    Merge adjacent records based on BU's version of Chow Tests for nested models.
     Use Chow Test to find false positive, spurious, or unnecessary breaks
     in the timeseries by comparing the effectiveness of two separate
     adjacent models with one single model that spans the entire time
     period.
+
     Chow test is described:
     .. math::
         \\frac{[RSS_r - (RSS_1 + RSS_2)] / k}{(RSS_1 + RSS_2) / (n - 2k)}
@@ -28,9 +31,18 @@ def do_chowda(yatsm, m_1_start, m_1_end,
         - :math:`RSS_2` is the RSS of the second model
         - :math:`k` is the number of model parameters
         - :math:`n` is the number of total observations
-    Because we look for change in multiple bands, the RSS used to compare
-    the unrestricted versus restricted models is the mean RSS
-    values from all ``model.test_indices``.
+
+    The restricted model corresponds to the model using the pooled observations
+    spanning full test period. The model is restricted in that the coefficients are
+    assumed to be equal for the entirety of the time period. To test the null
+    hypothesis that the restrictions on the model are true (and there should not
+    be two seperate groups, or in our case a model break), we calculate the Chow
+    Test statistic, which follows an F-distribution. Accepting the null hypothesis
+    therefore signifies the restrictions are valid, and we merge the models.
+
+    Because we look for change in multiple bands, the Chow Test statistic must
+    be collapsed across test bands.
+
     """
     F_stats = []
     # Allocate memory outside of loop
@@ -59,67 +71,22 @@ def do_chowda(yatsm, m_1_start, m_1_end,
     #Get weights for the mean based on average r^2 across bands
     weights = get_weights(yatsm)
 
-    # How to collapse test statistic across bands?
+    # How to collapse test statistic across bands? There are multiple possible ways, but
+    # for testing we calculated the weighted means of each of the 3 rss across bands,
+    # and used the means to calculate the Chow test statistic
 
-    ## option one: 'collapse' - put the mean RSS for each band directly into the
-    ## F Test within the Chow Test
+    F2 = (
+         ((w_av(m_r_rss, weights) - (w_av(m_1_rss, weights)
+         + w_av(m_2_rss, weights))) / k ) /
+         ((w_av(m_1_rss, weights) + w_av(m_2_rss, weights))
+         / (n - 2 * k))
+         )
 
-    ## option two: 'mode': calculate F statistic for each band individual, if
-    ## a majority of them exceed the critical value, reject null hypothesis
+    if F2 > F_crit:
+        reject = True
+    else:
+        reject = False
 
-    ## option three: 'weighted_mean': calculate weighted mean for each rss and
-    ## use the means for the F test
-
-    ## option three: 'weighted_fmean': calculate F statistic for each band and
-    ## take the weighted mean to compare to critical value
-
-    ## for testing and publication submitted to RSE, option 3 was used. The overall
-    ## impact was rather minimal, however.
-
-
-    if behavior == 'collapse':
-        """ Collapse: Take the mean (un-weighted) for each variable in the
-        formula across bands. """
-        F = (
-            ((m_r_rss.mean() - (m_1_rss.mean() + m_2_rss.mean())) / k) /
-            ((m_1_rss.mean() + m_2_rss.mean()) / (n - 2 * k))
-             )
-        if F > F_crit:
-            reject = True
-        else:
-            reject = False
-
-    elif behavior.lower() == 'mode':
-        """ Mode: Do what the majority of bands do """
-        F_over = len(np.where(np.array(F_stats) > F_crit)[0])
-        # Just an ugly was of determining if the majority of bands are over the crit
-        if F_over > (len(yatsm.test_indices) / float(2)):
-            reject = True
-        else:
-            reject = False
-
-    elif behavior == 'weighted_mean':
-        """ Weighted mean: take the weighted mean across bands for
-        each variable within the formula """
-        F2 = (
-             ((w_av(m_r_rss, weights) - (w_av(m_1_rss, weights)
-             + w_av(m_2_rss, weights))) / k ) /
-             ((w_av(m_1_rss, weights) + w_av(m_2_rss, weights))
-             / (n - 2 * k))
-             )
-        if F2 > F_crit:
-            reject = True
-        else:
-            reject = False
-
-    elif behavior == 'weighted_fmean':
-        """ Calculate F-statistic for each band and take the
-        weighted mean of the statistic """
-        F = w_av(F_stats, weights)
-        if F > F_crit:
-            reject = True
-        else:
-            reject = False
     return reject
 
 def w_av(data, weights):
@@ -226,8 +193,7 @@ def commission_test(yatsm, alpha=0.10,behavior="collapse"):
             # Re-fit models and copy over attributes
             yatsm.models = yatsm.fit_models(
                                 yatsm.X[m_r_start:m_r_end, :],
-                                yatsm.Y[:, m_r_start:m_r_end],
-                                bands=yatsm.test_indices)
+                                yatsm.Y[:, m_r_start:m_r_end])
 
             # Add coefficients and RMSE to records
             for i_m, _m in enumerate(yatsm.models):
