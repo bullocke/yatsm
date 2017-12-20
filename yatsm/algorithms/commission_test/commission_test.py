@@ -44,7 +44,7 @@ def do_chowda(yatsm, m_1_start, m_1_end,
     be collapsed across test bands.
 
     """
-    F_stats = []
+
     # Allocate memory outside of loop
     m_1_rss = np.zeros(yatsm.test_indices.size)
     m_2_rss = np.zeros(yatsm.test_indices.size)

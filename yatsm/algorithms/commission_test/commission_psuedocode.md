@@ -4,7 +4,6 @@
 
 ```python
 function do_chowda:
-    F_stats = empty list 
     m_1_rss = empty numpy array the length of number of test bands
     m_2_rss = empty numpy array the length of number of test bands
     m_r_rss = empty numpy array the length of number test bands
@@ -112,10 +111,9 @@ therefore signifies the restrictions are valid, and we merge the models.
 Because we look for change in multiple bands, the Chow Test statistic must
 be collapsed across test bands.
 
-First, create containers for the F statistics across bands, in addition to the residual sum of squares for the 2 models to test (m_1_rss, m_2_rss) and the restricted model (m_r_rss)
+First, create containers for the the residual sum of squares for the 2 models to test (m_1_rss, m_2_rss) and the restricted model (m_r_rss)
 
 ```python
-F_stats = empty list 
 m_1_rss = empty numpy array the length of number of test bands
 m_2_rss = empty numpy array the length of number of test bands
 m_r_rss = empty numpy array the length of number test bands
@@ -134,7 +132,7 @@ To collapse the statistic across bands, we need to get the correlation weights u
 weights = perform function "get_weights"
 ```
 
-How to collapse test statistic across bands? There are various ways of doing it, but in testing we used the band weights to calculate the weighted average of each RSS, and used the means to calculate the Chow Test Statistic. The Chow Test statistic follows an F-distribution. If the test statistic exceeds the critical value, we reject the null hypothesis that the model restrictions are true and retain that there are two statistically seperate groups of data and the break is
+How to collapse test statistic across bands? There are various ways of doing it, but in testing we used the band weights to calculate the weighted average of each RSS, and used the means to calculate the Chow Test Statistic. If the test statistic exceeds the critical value, we reject the null hypothesis that the model restrictions are true and retain that there are two statistically seperate groups of data and the break is
 confirmed. 
 ```python
 F = F statistic using weighted means from function "w_av" for each rss within formula
