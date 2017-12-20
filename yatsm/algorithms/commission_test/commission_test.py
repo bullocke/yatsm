@@ -12,7 +12,7 @@ logger = logging.getLogger('yatsm')
 
 def do_chowda(yatsm, m_1_start, m_1_end,
           m_2_start, m_2_end, m_r_start,
-          m_r_end, models, behavior,
+          m_r_end, models,
           k, n, F_crit):
     """
 
@@ -33,8 +33,8 @@ def do_chowda(yatsm, m_1_start, m_1_end,
         - :math:`n` is the number of total observations
 
     The restricted model corresponds to the model using the pooled observations
-    spanning full test period. The model is restricted in that the coefficients are
-    assumed to be equal for the entirety of the time period. To test the null
+    spanning the full test period. The model is restricted in that the coefficients
+    are assumed to be equal for the entirety of the time period. To test the null
     hypothesis that the restrictions on the model are true (and there should not
     be two seperate groups, or in our case a model break), we calculate the Chow
     Test statistic, which follows an F-distribution. Accepting the null hypothesis
@@ -63,26 +63,19 @@ def do_chowda(yatsm, m_1_start, m_1_end,
                                        yatsm.Y[b, m_2_start:m_2_end])[1]
         m_r_rss[i_b] = np.linalg.lstsq(yatsm.X[m_r_start:m_r_end, :],
                                        yatsm.Y[b, m_r_start:m_r_end])[1]
-    # Calculate F stat for band
-        F_band = (((m_r_rss[i_b] - (m_1_rss[i_b] + m_2_rss[i_b])) / k)
-         / ((m_1_rss[i_b] + m_2_rss[i_b]) / (n - 2 * k)))
-        F_stats.append(F_band)
 
     #Get weights for the mean based on average r^2 across bands
     weights = get_weights(yatsm)
 
-    # How to collapse test statistic across bands? There are multiple possible ways, but
-    # for testing we calculated the weighted means of each of the 3 rss across bands,
-    # and used the means to calculate the Chow test statistic
-
-    F2 = (
+    # Calculate Chow test statistic using weighted means of the model RSS
+    F = (
          ((w_av(m_r_rss, weights) - (w_av(m_1_rss, weights)
          + w_av(m_2_rss, weights))) / k ) /
          ((w_av(m_1_rss, weights) + w_av(m_2_rss, weights))
          / (n - 2 * k))
          )
 
-    if F2 > F_crit:
+    if F > F_crit:
         reject = True
     else:
         reject = False
@@ -96,12 +89,15 @@ def w_av(data, weights):
 def get_weights(yatsm):
     """ Get weights based on average coefficient of determination between bands.
     Basically this is used to determine which bands are least correlated to the other
-    bands based on the reflectance time series  """
-    weights = 1 - (np.sum((np.corrcoef(yatsm.Y[yatsm.test_indices]))**2,axis=0) /
+    bands based on the cloud-masked reflectance time series  """
+    weights = 1 - 
+	      (np.sum((
+	      np.corrcoef(
+	      yatsm.Y[yatsm.test_indices]))**2,axis=0) /
               len(yatsm.test_indices))
     return weights
 
-def commission_test(yatsm, alpha=0.10,behavior="collapse"):
+def commission_test(yatsm, alpha=0.10):
     """ Master function for testing whether to merge adjacent models due to incorrect
     changes detected by CCDC.
     Args:

@@ -16,7 +16,7 @@ function do_chowda:
 
     weights = perform function "get_weights"
 
-    F = F statistic using weighted means of rss within formula
+    F = F statistic using weighted means from function "w_av" for each rss within formula
     if F > F_crit:
         reject = True
         dont merge
@@ -29,7 +29,7 @@ function w_av:
     return weighted average based on weights variable
 
 function get_weights:
-    return weights
+    return band weights
 
 function commission_test:
     if number of models = 1:
@@ -92,7 +92,7 @@ Function for performing the modified Chow Test [(Chow 1960)](http://www.jstor.or
 
 Chow test is described:
 
-\frac{[RSS_r - (RSS_1 + RSS_2)] / k}{(RSS_1 + RSS_2) / (n - 2k)}
+![equation](https://raw.githubusercontent.com/bullocke/yatsm/postprocess/yatsm/algorithms/commission_test/equation.svg)
 
 where:
 - RSS_r: the RSS of the combined, or, restricted model
@@ -137,7 +137,7 @@ weights = perform function "get_weights"
 How to collapse test statistic across bands? There are various ways of doing it, but in testing we used the band weights to calculate the weighted average of each RSS, and used the means to calculate the Chow Test Statistic. The Chow Test statistic follows an F-distribution. If the test statistic exceeds the critical value, we reject the null hypothesis that the model restrictions are true and retain that there are two statistically seperate groups of data and the break is
 confirmed. 
 ```python
-F = F statistic using weighted means of rss within formula
+F = F statistic using weighted means from function "w_av" for each rss within formula
 if F > F_crit:
     reject = True
     dont merge
@@ -189,7 +189,7 @@ merged = False
 Loop over every model in time series that has a break
 
 ```python
-for every model containig a break and subsequent model in time series:
+for every model containing a break and subsequent model in time series:
     if the previous models were merged:
         m_1 = previous model
     else: 
