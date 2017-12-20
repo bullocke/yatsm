@@ -92,7 +92,7 @@ Function for performing the modified Chow Test [(Chow 1960)](http://www.jstor.or
 
 Chow test is described:
 
-![equation](https://raw.githubusercontent.com/bullocke/yatsm/postprocess/yatsm/algorithms/commission_test/equation.svg)
+![equation](https://raw.githubusercontent.com/bullocke/yatsm/postprocess/yatsm/algorithms/commission_test/equation.png)
 
 where:
 - RSS_r: the RSS of the combined, or, restricted model
