@@ -174,31 +174,19 @@ def line(ctx, config, job_number, total_jobs,
             yatsm.px = col
             yatsm.py = line
 
-            #try:
-            yatsm.fit(_X, _Y, _dates)
-            #except TSLengthException:
-             #   continue
+	    try:
+                yatsm.fit(_X, _Y, _dates)
+            except TSLengthException:
+                continue
 
-            #if yatsm.record is None:
-            #    continue
+            if yatsm.record is None or len(yatsm.record) == 0:
+                continue
+
             # Postprocess
             if cfg['YATSM']['commission_alpha']:
                 yatsm.record = postprocess.commission_test(
                     yatsm, cfg['YATSM']['commission_alpha'])
 
-	    #Check once if it's in config file, then if it is desired
-	    if 'omission_alpha' in cfg['YATSM']:
-		if cfg['YATSM']['omit_any']: 
-		    omit_decision = 'ANY'
-		else:
-		    omit_decision = 'ALL' 
-		if cfg['YATSM']['omission_alpha']:
-                    yatsm.record = postprocess.omission_test(
-                                   yatsm, cfg['YATSM']['omission_alpha'], omit_decision)
-            for prefix, lm in zip(cfg['YATSM']['refit']['prefix'],
-                                  cfg['YATSM']['refit']['prediction_object']):
-                yatsm.record = postprocess.refit_record(yatsm, prefix, lm,
-                                                        keep_regularized=True)
 
             if cfg['phenology']['enable']:
                 ltm = pheno.LongTermMeanPhenology(yatsm, **cfg['phenology'])
@@ -206,6 +194,7 @@ def line(ctx, config, job_number, total_jobs,
                     year_interval=cfg['phenology']['year_interval'],
                     q_min=cfg['phenology']['q_min'],
                     q_max=cfg['phenology']['q_max'])
+
 	    #Do omission test here
             if yatsm.record is not None:
             	output.extend(yatsm.record)
